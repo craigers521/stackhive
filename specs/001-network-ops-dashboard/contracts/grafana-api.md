@@ -135,8 +135,12 @@ Used at startup to discover available dashboard UIDs and map them to link target
 - Device status is polled from Grafana every `refresh_interval` seconds (default: 60).
 - On dashboard page load, the front-end triggers a fresh status fetch.
 - Status results are cached server-side; stale cache is served if Grafana is unreachable.
+- Stale telemetry: if no recent metrics exist for a device (last-seen beyond 5× `refresh_interval`), its status displays `unknown` with a `last_seen` timestamp on the device page.
+- InfluxDB bucket retention defaults to 14 days (configurable via the `influxdb_retention_days` setting); expired telemetry surfaces through the stale→`unknown` mapping above.
 
 ## Error Handling
+
+Standardized external-call behavior (10 s connection timeout; 3 retries with backoff on 5xx) applies; for status reads the stale-cache strategy below takes precedence.
 
 | Grafana HTTP status | Dashboard behavior                            |
 |---------------------|-----------------------------------------------|

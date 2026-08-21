@@ -1,0 +1,32 @@
+!
+! --- aaa ---
+!
+service password-encryption
+aaa new-model
+{% if aaa.get('enable_secret') %}
+enable secret {{ aaa.get('enable_secret') }}
+{% endif %}
+{% if aaa.get('ssh', {}).get('enabled', true) %}
+ip ssh version 2
+ip ssh time-out 60
+{% endif %}
+{% if not aaa.get('telnet', {}).get('enabled', false) %}
+line vty 0 4
+ login local
+ transport input ssh
+{% endif %}
+{% for user in aaa.get('local_users', []) %}
+username {{ user.get('name') }} privilege {{ user.get('privilege', 15) }} secret {{ user.get('secret_hash') }}
+{% endfor %}
+{% set aaa_logging = aaa.get('logging', {}) %}
+{% if aaa_logging.get('host') %}
+logging host {{ aaa_logging.get('host') }}
+logging facility {{ aaa_logging.get('facility', 16) }}
+logging trap {{ aaa_logging.get('level', 'informational') }}
+{% endif %}
+{% if aaa.get('tacacs', {}).get('enabled') %}
+tacacs-server host {% for server in aaa.get('tacacs', {}).get('servers', []) %}{{ server }} {% endfor %}
+tacacs-server key {{ aaa.get('tacacs', {}).get('key', '') }}
+aaa authentication login default group tacacs+ local
+aaa authentication enable default group tacacs+ enable
+{% endif %}

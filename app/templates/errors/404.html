@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Not found{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <div class="display-4 fw-bold text-secondary">404</div>
+  <p class="lead">{{ message or "The resource you requested could not be found." }}</p>
+  <a class="btn btn-primary" href="{{ url_for('dashboard.index') }}">Back to dashboard</a>
+</div>
+{% endblock %}

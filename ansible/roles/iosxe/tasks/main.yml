@@ -1,0 +1,115 @@
+---
+# iosxe role — snippet assembly.
+#
+# Render order:
+#   1. For each enabled snippet (enabled_snippets, ordered):
+#        - prefer profile override at {{ iosxe_profile_templates_dir }}/<name>.j2
+#        - otherwise fall back to the role default templates/<name>.j2
+#   2. Assemble the full candidate configuration in snippet order.
+#   3. deploy_mode:
+#        preview -> write per-snippet + assembled artifacts (no device I/O)
+#        live    -> push the assembled candidate via NETCONF (cisco.ios.ios_config)
+#        ztp     -> apply the day-0 bootstrap + netconf only (see tasks/ztp.yml)
+
+- name: Set profile name for artifacts
+  ansible.builtin.set_fact:
+    iosxe_profile: "{{ stackhive_profile | default('') }}"
+
+- name: Stat profile template overrides
+  ansible.builtin.stat:
+    path: "{{ iosxe_profile_templates_dir }}/{{ item }}.j2"
+  loop: "{{ enabled_snippets }}"
+  register: iosxe_override_stats
+
+- name: Resolve snippet sources (profile override or role default)
+  ansible.builtin.set_fact:
+    iosxe_snippet_sources: >-
+      {{ iosxe_snippet_sources | default({}) | combine({
+          item.0: (item.1.stat.path if item.1.stat.exists else (item.0 ~ '.j2'))
+      }) }}
+  loop: "{{ enabled_snippets | zip(iosxe_override_stats.results) | list }}"
+  loop_control:
+    label: "{{ item.0 }}"
+
+- name: Render snippets into the registry
+  ansible.builtin.set_fact:
+    iosxe_rendered_snippets: >-
+      {{ iosxe_rendered_snippets | default({}) | combine({
+          item: lookup('template', iosxe_snippet_sources[item])
+      }) }}
+  loop: "{{ enabled_snippets }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Build snippet artifact list
+  ansible.builtin.set_fact:
+    iosxe_snippet_artifacts: >-
+      {{ iosxe_snippet_artifacts | default([]) + [{
+          'name': item,
+          'content': (iosxe_rendered_snippets[item] | trim)
+      }] }}
+  loop: "{{ enabled_snippets }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Assemble the full candidate configuration
+  vars:
+    _nl: "\n"
+  ansible.builtin.set_fact:
+    iosxe_assembled: >-
+      {{ (iosxe_snippet_artifacts | map(attribute='content') | join(_nl) ~ _nl)
+         if (iosxe_snippet_artifacts | selectattr('content', 'ne', '') | list) else '' }}
+
+- name: Append pre-rendered interface template blocks
+  ansible.builtin.set_fact:
+    iosxe_assembled: "{{ iosxe_assembled ~ (iosxe_extra_blocks ~ _nl) }}"
+  vars:
+    _nl: "\n"
+    iosxe_extra_blocks: "{{ iosxe_extra_config_blocks | default([]) | map('trim') | select | join(_nl) }}"
+  when: (iosxe_extra_config_blocks | default([]) | map('trim') | select | list) | length > 0
+
+- name: Ensure preview output directory exists
+  ansible.builtin.file:
+    path: "{{ iosxe_output_dir }}"
+    state: directory
+    mode: "0755"
+  when: deploy_mode == 'preview'
+
+- name: Write per-snippet preview artifacts
+  ansible.builtin.copy:
+    content: "{{ (iosxe_rendered_snippets[item] | trim) ~ _nl }}"
+    dest: "{{ iosxe_output_dir }}/{{ item }}.snippet"
+    mode: "0644"
+  vars:
+    _nl: "\n"
+  loop: "{{ enabled_snippets }}"
+  loop_control:
+    label: "{{ item }}"
+  when: deploy_mode == 'preview'
+
+- name: Write assembled preview configuration
+  ansible.builtin.copy:
+    content: "{{ iosxe_assembled }}"
+    dest: "{{ iosxe_output_dir }}/config.cfg"
+    mode: "0644"
+  when: deploy_mode == 'preview'
+
+- name: Write preview JSON artifact
+  ansible.builtin.copy:
+    content: "{{ iosxe_preview_artifact | to_nice_json }}\n"
+    dest: "{{ iosxe_output_dir }}/preview.json"
+    mode: "0644"
+  when: deploy_mode == 'preview'
+  vars:
+    iosxe_preview_artifact:
+      hostname: "{{ inventory_hostname }}"
+      profile: "{{ iosxe_profile }}"
+      deploy_mode: "{{ deploy_mode }}"
+      config: "{{ iosxe_assembled }}"
+      snippets: "{{ iosxe_snippet_artifacts }}"
+
+- name: Apply configuration over NETCONF (merge semantics, atomic commit)
+  cisco.ios.ios_config:
+    lines: "{{ iosxe_assembled }}"
+    parents: []
+  when: deploy_mode == 'live'

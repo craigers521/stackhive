@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "components/status_badge.html" import status_badge %}
+{% block title %}Inventory{% endblock %}
+{% block page_title %}Device Inventory{% endblock %}
+{% block content %}
+{% if source_down %}
+<div class="alert alert-warning py-2" role="alert">
+  <i class="bi bi-exclamation-triangle me-2"></i>NetBox is unreachable — showing last synced data.
+</div>
+{% endif %}
+<form method="get" action="{{ url_for('inventory.list') }}" class="row g-2 mb-3 align-items-end">
+  <div class="col-auto">
+    <label class="form-label small mb-1" for="f-role">Role</label>
+    <select name="role" id="f-role" class="form-select form-select-sm">
+      <option value="">All roles</option>
+      {% for role in role_options %}
+      <option value="{{ role }}" {% if filters.get('role') == role %}selected{% endif %}>{{ role }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-1" for="f-type">Device type</label>
+    <select name="type" id="f-type" class="form-select form-select-sm">
+      <option value="">All types</option>
+      {% for t in type_options %}
+      <option value="{{ t }}" {% if filters.get('type') == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-1" for="f-site">Site</label>
+    <input type="text" name="site" id="f-site" class="form-control form-control-sm" value="{{ filters.get('site', '') }}" placeholder="site">
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-1" for="f-status">Status</label>
+    <select name="status" id="f-status" class="form-select form-select-sm">
+      <option value="">Any</option>
+      {% for s in ('up', 'down', 'unknown') %}
+      <option value="{{ s }}" {% if filters.get('status') == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-1" for="f-search">Search</label>
+    <input type="text" name="search" id="f-search" class="form-control form-control-sm" value="{{ filters.get('search', '') }}" placeholder="hostname / IP / serial">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Filter</button>
+    <a href="{{ url_for('inventory.list') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+  </div>
+</form>
+
+{% if devices %}
+<div class="table-responsive">
+  <table class="table table-hover table-stack align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>Hostname</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Mgmt IP</th>
+        <th>Site</th>
+        <th>Device type</th>
+        <th>Config</th>
+        <th>Flags</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for device in devices %}
+      <tr {% if device.stale %}class="table-secondary"{% endif %}>
+        <td><a href="{{ url_for('inventory.detail', netbox_id=device.netbox_id) }}"><strong>{{ device.hostname }}</strong></a></td>
+        <td><span class="badge bg-light text-dark border">{{ device.role }}</span></td>
+        <td>{{ status_badge(kind="status", status=device.monitoring_status) }}</td>
+        <td>{{ device.mgmt_ip.split('/')[0] }}</td>
+        <td>{{ device.site }}</td>
+        <td>{{ device.device_type.model if device.device_type else '—' }}</td>
+        <td><span class="text-secondary">{{ device.config_status }}</span></td>
+        <td>
+          {% if device.cloud_managed %}<span class="badge bg-info text-dark">cloud</span>{% endif %}
+          {% if device.stale %}<span class="badge bg-warning text-dark">stale</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card bg-white">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-hdd-network display-6 text-secondary"></i>
+    <p class="mt-2 mb-1">No devices match.</p>
+    {% if device_count_total == 0 %}
+    <p class="text-secondary small mb-3">Add devices in NetBox, then run an inventory sync to import them here.</p>
+    <div class="d-flex gap-2 justify-content-center">
+      {% if current_user.is_authenticated and current_user.can_edit() %}
+      <form method="post" action="{{ url_for('inventory.inventory_sync_form') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Sync inventory from NetBox</button>
+      </form>
+      {% endif %}
+      {% if tool_links.get('netbox') %}
+      <a href="{{ tool_links['netbox'] }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm"><i class="bi bi-diagram-3 me-1"></i>Open NetBox</a>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="text-secondary small mb-3">Try widening the role, type, site, status, or search filters.</p>
+    <a href="{{ url_for('inventory.list') }}" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Reset filters</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if pagination.pages > 1 %}
+<nav aria-label="Inventory pages" class="mt-3">
+  <ul class="pagination pagination-sm">
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+      <li class="page-item {% if p == pagination.page %}active{% endif %}">
+        <a class="page-link" href="?page={{ p }}{% for k, v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">{{ p }}</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% endif %}
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}

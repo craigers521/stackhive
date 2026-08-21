@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "components/status_badge.html" import status_badge %}
+{% block title %}Onboarding{% endblock %}
+{% block page_title %}Onboarding{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    {% include "onboarding/provision_form.html" %}
+  </div>
+  <div class="col-lg-7">
+    <div class="card bg-white">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-list-check me-2"></i>Provisioning queue ({{ provisions | length }})</div>
+      <div class="card-body p-0">
+        {% if provisions %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Hostname</th><th>Serial</th><th>Profile</th><th>Status</th><th>Artifacts</th><th class="text-end">Actions</th></tr>
+            </thead>
+            <tbody>
+              {% for p in provisions %}
+              <tr>
+                <td><a href="{{ url_for('inventory.detail', netbox_id=p.device.netbox_id) }}"><strong>{{ p.device.hostname }}</strong></a></td>
+                <td><code class="small">{{ p.device.serial_number }}</code></td>
+                <td class="small">{{ profile_by_role.get(p.device.role) or '—' }}</td>
+                <td>
+                  {{ status_badge(kind="ztp", status=p.status) }}
+                  {% if p.is_meraki %}<span class="badge bg-info text-dark ms-1">meraki</span>{% endif %}
+                </td>
+                <td class="small">
+                  <a href="{{ p.url }}.txt" target="_blank" rel="noopener">script</a> ·
+                  <a href="{{ p.url }}.cfg" target="_blank" rel="noopener">config</a>
+                </td>
+                <td class="text-end">
+                  {% if p.status in ('pending', 'generated', 'delivered') %}
+                  <form method="post" action="{{ url_for('onboarding.cancel', pid=p.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm py-0" title="Cancel this provision"><i class="bi bi-x-lg"></i></button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="card-body text-center py-5">
+          <i class="bi bi-plug display-6 text-secondary"></i>
+          <p class="mt-2 mb-1">No provisions in flight.</p>
+          <p class="text-secondary small mb-3">Finished (onboarded, failed or cancelled) provisions are hidden from the queue.</p>
+          {% if devices %}
+          <a href="#new-ztp-provision" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Create a ZTP provision</a>
+          {% else %}
+          <p class="text-secondary small">Add devices in NetBox first, then sync the inventory.</p>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% if not provisions and devices %}
+    <p class="text-secondary small mt-2 mb-0">Next step: pick a device below, enter its serial, and the dashboard will host the boot script and day-0 config.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

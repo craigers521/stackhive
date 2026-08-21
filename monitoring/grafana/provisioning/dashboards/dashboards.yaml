@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: stackhive
+    orgId: 1
+    folder: StackHive
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/stackhive
+      foldersFromFilesStructure: false

@@ -1,0 +1,14 @@
+---
+galaxy_info:
+  author: stackhive
+  description: IOS-XE configuration assembly and deployment role
+  role_name: iosxe
+  company: stackhive
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms: []
+  galaxy_tags:
+    - networking
+    - cisco
+    - iosxe
+dependencies: []

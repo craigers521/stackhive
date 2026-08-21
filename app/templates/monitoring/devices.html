@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "components/status_badge.html" import status_badge %}
+{% block title %}Monitoring{% endblock %}
+{% block page_title %}Monitoring{% endblock %}
+{% block content %}
+{% include "monitoring/infrastructure.html" %}
+{% set role = request.args.get('role', '') %}
+<form method="get" action="{{ url_for('monitoring.devices') }}" class="d-flex gap-2 align-items-end mb-3">
+  <div>
+    <label class="form-label small mb-1" for="m-role">Role</label>
+    <select name="role" id="m-role" class="form-select form-select-sm">
+      <option value="">All roles</option>
+      {% for r in role_options %}<option value="{{ r }}" {% if role == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+</form>
+
+{% if entries %}
+<div class="table-responsive">
+  <table class="table table-hover table-stack align-middle bg-white">
+    <thead class="table-light">
+      <tr><th>Hostname</th><th>IP</th><th>Status</th><th>Last check</th><th>Dashboard</th></tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td><a href="{{ url_for('inventory.detail', netbox_id=netbox_ids.get(e.hostname, 0)) }}"><strong>{{ e.hostname }}</strong></a></td>
+        <td>{{ e.ip_address }}</td>
+        <td>{{ status_badge(kind="status", status=e.status) }}</td>
+        <td class="small text-secondary">{{ e.last_check or '—' }}</td>
+        <td><a href="{{ e.grafana_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i></a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card bg-white">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-activity display-6 text-secondary"></i>
+    <p class="mt-2 mb-1">No devices to monitor yet.</p>
+    {% if role %}
+    <p class="text-secondary small mb-3">No devices in role “{{ role }}”. Clear the role filter to see the full fleet.</p>
+    <a href="{{ url_for('monitoring.devices') }}" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Reset filters</a>
+    {% else %}
+    <p class="text-secondary small mb-3">Devices appear here after an inventory sync from NetBox.</p>
+    <a href="{{ url_for('inventory.list') }}" class="btn btn-primary btn-sm"><i class="bi bi-hdd-network me-1"></i>Open inventory</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

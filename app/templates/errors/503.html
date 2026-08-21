@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Service unavailable{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <div class="display-4 fw-bold text-warning">503</div>
+  <p class="lead">{{ message or "A required service is unavailable. Try again shortly." }}</p>
+  <a class="btn btn-primary" href="{{ url_for('dashboard.index') }}">Back to dashboard</a>
+</div>
+{% endblock %}

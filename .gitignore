@@ -1,3 +1,45 @@
-.specify
-.opencode
-opencode.json
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local compose overrides & generated configs
+docker-compose.override.yml
+*.generated.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Flask
+instance/
+
+# SQLite & local state
+*.db
+*.sqlite3
+/var/lib/stackhive/
+
+# Ansible rendered output
+ansible/preview_out/
+*.retry
+
+# Node / tooling
+node_modules/
+dist/
+build/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.tmp
+.DS_Store
+Thumbs.db

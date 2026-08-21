@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Error {{ status }}{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <div class="display-4 fw-bold text-danger">{{ status }}</div>
+  <p class="lead">{{ message or "You do not have permission to perform this action." }}</p>
+  <a class="btn btn-primary" href="{{ url_for('dashboard.index') }}">Back to dashboard</a>
+</div>
+{% endblock %}

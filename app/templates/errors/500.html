@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Server error{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <div class="display-4 fw-bold text-danger">500</div>
+  <p class="lead">{{ message or "An unexpected error occurred. The team has been notified." }}</p>
+  <a class="btn btn-primary" href="{{ url_for('dashboard.index') }}">Back to dashboard</a>
+</div>
+{% endblock %}

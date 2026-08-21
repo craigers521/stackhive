@@ -1,0 +1,79 @@
+---
+- name: Molecule verify — rendered config assertions
+  hosts: all
+  gather_facts: false
+  connection: local
+  vars:
+    output_dir: "${MOLECULE_EPHEMERAL_DIRECTORY}/preview_out/mock-sw-01"
+  tasks:
+    - name: Read assembled preview configuration
+      ansible.builtin.slurp:
+        src: "{{ output_dir }}/config.cfg"
+      register: rendered_config
+
+    - name: Decode rendered configuration
+      ansible.builtin.set_fact:
+        config_text: "{{ rendered_config.content | b64decode }}"
+
+    - name: Read preview JSON artifact
+      ansible.builtin.slurp:
+        src: "{{ output_dir }}/preview.json"
+      register: preview_json
+
+    - name: Parse preview JSON artifact
+      ansible.builtin.set_fact:
+        artifact: "{{ preview_json.content | b64decode | from_json }}"
+
+    - name: Assert the full config renders expected content
+      ansible.builtin.assert:
+        that:
+          - "'enable secret cisco123' in config_text"
+          - "'ip ssh version 2' in config_text"
+          - "'vlan 10' in config_text"
+          - "'name MGMT' in config_text"
+          - "'vlan 20' in config_text"
+          - "'mdt stream if-state' in config_text"
+          - "'ip netconf' in config_text"
+          - "'router ospf 100' in config_text"
+          - "'network 192.0.2.0/24 area 0' in config_text"
+          - "'ip route 0.0.0.0/0 192.0.2.1' in config_text"
+
+    - name: Assert the interface loop produces one block per managed interface
+      ansible.builtin.assert:
+        that:
+          - "'interface GigabitEthernet1/0/1' in config_text"
+          - "'interface GigabitEthernet1/0/4' in config_text"
+          - "config_text is search('interface GigabitEthernet1/0/[0-9]+')"
+
+    - name: Assert per-interface overrides and host_vars precedence
+      ansible.builtin.assert:
+        that:
+          - "'UPLINK-to-Override' in config_text"
+          - "'EXTRA-override' in config_text"
+          - "'SPARE' not in config_text"
+          - "'ip domain name override.example.com' in config_text"
+          - "'leaf.example.com' not in config_text"
+
+    - name: Assert one snippet file per enabled snippet
+      ansible.builtin.stat:
+        path: "{{ output_dir }}/{{ item }}.snippet"
+      register: snippet_files
+      loop: [aaa, netconf, mdt, vlan, routing, interfaces]
+
+    - name: Assert all snippet artifacts exist and are non-empty
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.size > 0
+      loop: "{{ snippet_files.results }}"
+      loop_control:
+        label: "{{ item.stat.pbase }}"
+
+    - name: Assert preview artifact JSON matches assembled config
+      ansible.builtin.assert:
+        that:
+          - artifact.hostname == 'mock-sw-01'
+          - artifact.profile == 'leaf'
+          - artifact.config == config_text
+          - artifact.snippets | length == 6
+          - artifact.snippets | selectattr('name', 'equalto', 'aaa') | list | length == 1

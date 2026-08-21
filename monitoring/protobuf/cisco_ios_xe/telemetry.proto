@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+// gNMI telemetry envelope used by Telegraf's grpc_listener_v2.
+// IOS-XE subscribes stream these models; the listener unpacks the Any
+// payloads into the cisco_ios_xe.* messages and emits telegraf metrics
+// tagged with the device hostname/ip.
+package cisco_ios_xe.telemetry;
+
+import "cisco_ios_xe/if_state.proto";
+import "cisco_ios_xe/processor.proto";
+import "cisco_ios_xe/memory.proto";
+
+message Telemetry {
+  repeated Any update = 1;
+}
+
+message Any {
+  string path = 1;
+  oneof value {
+    cisco_ios_xe.if_state.Interfaces if_state = 2;
+    cisco_ios_xe.processor.Processors processor = 3;
+    cisco_ios_xe.memory.MemoryStatistics memory = 4;
+  }
+}

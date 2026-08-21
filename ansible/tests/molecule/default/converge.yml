@@ -1,0 +1,7 @@
+---
+- name: Molecule converge — render the leaf profile on the mock host
+  hosts: all
+  gather_facts: false
+  connection: local
+  roles:
+    - role: iosxe

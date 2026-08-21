@@ -1,0 +1,13 @@
+!
+! --- netconf ---
+!
+{% if netconf.get('enabled', true) %}
+ip scp server enable
+netconf-yang
+netconf-yang feature actions
+netconf-yang feature notifications
+ip netconf
+ vrf {{ netconf.get('listen_interfaces', ['management']) | first }}
+ no shutdown
+!
+{% endif %}

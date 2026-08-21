@@ -1,0 +1,224 @@
+name: stackhive
+
+include:
+  - docker-compose.netbox.yml
+
+services:
+  app:
+    build: ./app
+    image: stackhive-dashboard:latest
+    container_name: stackhive-app
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////var/lib/stackhive/stackhive.db}
+    volumes:
+      - stackhive-db:/var/lib/stackhive
+      - ./ansible:/app/ansible:rw
+      - ./monitoring:/app/monitoring:ro
+    depends_on:
+      - netbox
+      - gitlab
+    ports:
+      - "127.0.0.1:5000:5000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.dashboard.priority=1"
+      - "traefik.http.routers.dashboard.entrypoints=web"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=5000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    restart: unless-stopped
+
+  traefik:
+    image: traefik:v3.1
+    container_name: stackhive-traefik
+    command:
+      - "--configfile=/etc/traefik/traefik.yml"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - traefik-acme:/var/lib/traefik
+    ports:
+      - "8080:8080"
+      - "443:443"
+    depends_on:
+      - app
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
+
+  gitlab:
+    image: gitlab/gitlab-ce:17.11.2-ce.0
+    container_name: stackhive-gitlab
+    hostname: gitlab.stackhive.local
+    shm_size: "256m"
+    environment:
+      GITLAB_ROOT_PASSWORD: ${GITLAB_ROOT_PASSWORD}
+      GITLAB_OMNIBUS_CONFIG: |
+        # Path-routed under /gitlab through the Traefik entry point; adjust the
+        # host:port to match your deployment's unified entry point.
+        external_url 'http://localhost:8080/gitlab'
+        nginx['listen_port'] = 8090
+        puma['worker_processes'] = 0
+        puma['min_threads'] = 1
+        puma['max_threads'] = 1
+        puma['exporter_enabled'] = false
+        sidekiq['concurrency'] = 5
+        sidekiq['metrics_enabled'] = false
+        postgresql['shared_buffers'] = '256MB'
+        postgresql['max_connections'] = 100
+        redis['maxmemory'] = '256mb'
+        redis['maxmemory_policy'] = 'allkeys-lru'
+        prometheus_monitoring['enable'] = false
+        prometheus['enable'] = false
+        alertmanager['enable'] = false
+        gitlab_exporter['enable'] = false
+        node_exporter['enable'] = false
+        postgres_exporter['enable'] = false
+        redis_exporter['enable'] = false
+        registry['enable'] = false
+        gitlab_kas['enable'] = false
+        gitlab_rails['artifacts_keep_hours'] = 168
+        gitlab_rails['gitlab_shell_ssh_port'] = 22
+    volumes:
+      - gitlab-data:/var/opt/gitlab
+      - gitlab-etc:/etc/gitlab
+      - gitlab-logs:/var/log/gitlab
+    ports:
+      - "127.0.0.1:8090:8090"
+    labels:
+      - "traefik.enable=true"
+      # GitLab is configured with the /gitlab path suffix (external_url), so
+      # NO StripPrefix middleware: requests keep the /gitlab prefix.
+      - "traefik.http.routers.gitlab.rule=PathPrefix(`/gitlab`)"
+      - "traefik.http.routers.gitlab.priority=10"
+      - "traefik.http.routers.gitlab.entrypoints=web"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=8090"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/-/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 15
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    restart: unless-stopped
+
+  gitlab-runner:
+    image: gitlab/gitlab-runner:v17.11.2
+    container_name: stackhive-runner
+    volumes:
+      - runner-config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./ansible:/app/ansible:ro
+    depends_on:
+      gitlab:
+        condition: service_healthy
+    environment:
+      # Runner reaches GitLab over the internal stackhive network at the
+      # container port, keeping the /gitlab path suffix from external_url.
+      GITLAB_URL: ${GITLAB_RUNNER_URL:-http://gitlab:8090/gitlab}
+      GITLAB_RUNNER_TOKEN: ${GITLAB_RUNNER_TOKEN:-}
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7.5
+    container_name: stackhive-influxdb
+    environment:
+      INFLUXDB_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-stackhive}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-stackhive-telemetry}
+      INFLUXDB_RETENTION: ${INFLUXDB_RETENTION_DAYS:-14}d
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    depends_on:
+      - app
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+
+  telegraf:
+    image: telegraf:1.32.4
+    container_name: stackhive-telegraf
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - ./monitoring/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - ./monitoring/protobuf:/etc/telegraf/protos:ro
+    environment:
+      HOST_PROC: /host/proc
+      HOST_SYS: /host/sys
+      INFLUX_TOKEN: ${INFLUXDB_TOKEN}
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.10
+    container_name: stackhive-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GRAFANA_URL: ${GRAFANA_URL:-http://localhost:8080/grafana}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards/stackhive:ro
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.priority=10"
+      - "traefik.http.middlewares.grafana-strip.stripprefix.prefixes=/grafana"
+      - "traefik.http.routers.grafana.middlewares=grafana-strip"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    restart: unless-stopped
+
+volumes:
+  stackhive-db:
+  gitlab-data:
+  gitlab-etc:
+  gitlab-logs:
+  influxdb-data:
+  grafana-data:
+  traefik-acme:
+  runner-config:
+
+networks:
+  default:
+    name: stackhive
+    driver: bridge

@@ -1,0 +1,17 @@
+{# HTMX partial: device checkbox options for a profile's role. #}
+{% if devices %}
+{% for device in devices %}
+<div class="form-check">
+  <input class="form-check-input" type="checkbox" name="device_ids" value="{{ device.netbox_id }}" id="dev-{{ device.netbox_id }}">
+  <label class="form-check-label small" for="dev-{{ device.netbox_id }}">
+    {{ device.hostname }} ({{ device.mgmt_ip.split('/')[0] if device.mgmt_ip else 'no-ip' }})
+    {% if device.cloud_managed %} — cloud-managed{% endif %}
+    {% if device.stale %} — stale{% endif %}
+  </label>
+</div>
+{% else %}
+<p class="text-secondary small mb-0">No devices in this role.</p>
+{% endfor %}
+{% else %}
+<p class="text-secondary small mb-0">No devices in this role.</p>
+{% endif %}

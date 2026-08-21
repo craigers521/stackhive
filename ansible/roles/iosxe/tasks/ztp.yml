@@ -1,0 +1,56 @@
+---
+# Constrained ZTP bootstrap task set (day-0).
+# Only bootstrap + netconf snippets are rendered/verified here; the device
+# has no operational config yet. Used by ztp.yml and the onboarding flow.
+
+- name: Stat ZTP snippet overrides
+  ansible.builtin.stat:
+    path: "{{ iosxe_profile_templates_dir }}/{{ item }}.j2"
+  loop: ["bootstrap", "netconf"]
+  register: ztp_override_stats
+
+- name: Resolve ZTP snippet sources
+  ansible.builtin.set_fact:
+    ztp_snippet_sources: >-
+      {{ ztp_snippet_sources | default({}) | combine({
+          item.0: (item.1.stat.path if item.1.stat.exists else (item.0 ~ '.j2'))
+      }) }}
+  loop: "{{ ['bootstrap', 'netconf'] | zip(ztp_override_stats.results) | list }}"
+  loop_control:
+    label: "{{ item.0 }}"
+
+- name: Render ZTP snippets
+  ansible.builtin.set_fact:
+    ztp_rendered: >-
+      {{ ztp_rendered | default({}) | combine({
+          item: lookup('template', ztp_snippet_sources[item])
+      }) }}
+  loop: ["bootstrap", "netconf"]
+  loop_control:
+    label: "{{ item }}"
+
+- name: Assemble ZTP candidate configuration
+  ansible.builtin.set_fact:
+    ztp_assembled: "{{ (ztp_rendered['bootstrap'] | trim) ~ _nl ~ (ztp_rendered['netconf'] | trim) ~ _nl }}"
+  vars:
+    _nl: "\n"
+
+- name: Ensure ZTP output directory exists
+  ansible.builtin.file:
+    path: "{{ iosxe_output_dir }}"
+    state: directory
+    mode: "0755"
+  when: deploy_mode in ('preview', 'ztp-preview')
+
+- name: Write ZTP preview artifact
+  ansible.builtin.copy:
+    content: "{{ {'hostname': inventory_hostname, 'config': ztp_assembled} | to_nice_json }}\n"
+    dest: "{{ iosxe_output_dir }}/ztp.json"
+    mode: "0644"
+  when: deploy_mode in ('preview', 'ztp-preview')
+
+- name: Apply ZTP bootstrap configuration over NETCONF
+  cisco.ios.ios_config:
+    lines: "{{ ztp_assembled }}"
+    parents: []
+  when: deploy_mode in ('live', 'ztp')

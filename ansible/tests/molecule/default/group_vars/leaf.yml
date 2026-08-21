@@ -1,0 +1,74 @@
+---
+# Profile-level variables for the leaf role group (group_vars).
+enabled_snippets:
+  - aaa
+  - netconf
+  - mdt
+  - vlan
+  - routing
+  - interfaces
+
+iosxe_domain_name: leaf.example.com
+iosxe_dns_servers:
+  - 198.51.100.53
+  - 198.51.100.54
+iosxe_ntp_servers:
+  - 198.51.100.53
+
+aaa:
+  enable_secret: cisco123
+  ssh:
+    enabled: true
+  telnet:
+    enabled: false
+  local_users:
+    - name: netops
+      privilege: 15
+      secret_hash: encrypted-hash-token
+
+netconf:
+  enabled: true
+
+mdt:
+  enabled: true
+  host: 198.51.100.10
+  port: 8080
+  update_interval_ms: 1000
+  subscriptions:
+    - name: if-state
+      path: /Cisco-IOS-XE-ifmgr-oper:interfaces/interface
+      sample_interval_ms: 30000
+      reporting: on-change
+
+vlans:
+  - id: 10
+    name: MGMT
+    description: management
+  - id: 20
+    name: ACCESS
+    description: user access
+
+interfaces:
+  - name: GigabitEthernet1/0/1
+    description: UPLINK-to-Core
+    vlan: 20
+    enabled: true
+  - name: GigabitEthernet1/0/2
+    description: ACC-user
+    vlan: 10
+    enabled: true
+  - name: GigabitEthernet1/0/3
+    description: SPARE
+    enabled: false
+
+routing:
+  ospf:
+    enabled: true
+    process_id: 100
+    area_default: 0
+    networks:
+      - prefix: 192.0.2.0/24
+        area: 0
+  static_routes:
+    - prefix: 0.0.0.0/0
+      next_hop: 192.0.2.1

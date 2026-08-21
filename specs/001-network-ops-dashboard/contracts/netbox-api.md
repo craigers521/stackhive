@@ -150,8 +150,12 @@ Returns site/location definitions. Used for site-based filtering in the inventor
 - Full inventory refresh (devices, types, roles, sites) occurs on dashboard load and on-demand.
 - When NetBox is unreachable, the dashboard caches the last successful response and surfaces a 503 error for live queries.
 - The Ansible inventory plugin queries NetBox dynamically at playbook runtime; the dashboard does not maintain a static copy of inventory.
+- Hostname collisions: sync upserts by NetBox ID. If two devices share a hostname (violating local uniqueness), the later record is skipped, the conflict is logged and surfaced in the sync-report UI; the operator renames one device in NetBox and re-syncs.
+- Device types lacking NetBox interface template data fall back to locally maintained `DeviceType` records (admin-maintained via `PUT /api/device-types`), used for profile authoring.
 
 ## Error Handling
+
+All integration clients share standardized external-call behavior: **10 s connection timeout; 3 retries with exponential backoff on 5xx/timeouts**; surface behavior is per-service as below.
 
 | NetBox HTTP status | Dashboard behavior                          |
 |--------------------|---------------------------------------------|

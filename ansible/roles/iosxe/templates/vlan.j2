@@ -1,0 +1,11 @@
+!
+! --- vlans ---
+!
+{% for vlan in vlans %}
+vlan {{ vlan.get('id') }}
+ name {{ vlan.get('name') }}
+{% if vlan.get('description') %}
+ description {{ vlan.get('description') }}
+{% endif %}
+exit
+{% endfor %}

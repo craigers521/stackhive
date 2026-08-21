@@ -1,0 +1,14 @@
+---
+# ZTP playbook — constrained task set for day-0 onboarding.
+# Renders (and optionally applies) the bootstrap + netconf snippets only.
+
+- name: StackHive ZTP bootstrap
+  hosts: all
+  gather_facts: false
+  vars:
+    deploy_mode: "{{ ztp_deploy_mode | default('ztp') }}"
+  tasks:
+    - name: Run the constrained ZTP task set
+      ansible.builtin.include_role:
+        name: iosxe
+        tasks_from: ztp

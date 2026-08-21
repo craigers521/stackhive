@@ -1,0 +1,270 @@
+{
+  "uid": "stackhive-infrastructure",
+  "title": "Infrastructure",
+  "tags": ["stackhive", "infrastructure"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "netbox",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\") |> range(start: -15m) |> filter(fn: (r) => r._measurement == \"service_health\" and r.service == \"netbox\") |> last()",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ],
+      "alert": {
+        "alertRuleTags": { "service": "netbox" },
+        "conditions": [
+          {
+            "evaluator": { "params": [1], "type": "lt" },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "2m", "now"] },
+            "reducer": { "type": "last" },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "no_data",
+        "for": "2m",
+        "frequency": "1m",
+        "handler": 1,
+        "message": "netbox service health is not reporting up.",
+        "name": "netbox availability",
+        "noDataState": "alerting",
+        "notifications": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "gitlab",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\") |> range(start: -15m) |> filter(fn: (r) => r._measurement == \"service_health\" and r.service == \"gitlab\") |> last()",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ],
+      "alert": {
+        "alertRuleTags": { "service": "gitlab" },
+        "conditions": [
+          {
+            "evaluator": { "params": [1], "type": "lt" },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "2m", "now"] },
+            "reducer": { "type": "last" },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "no_data",
+        "for": "2m",
+        "frequency": "1m",
+        "handler": 1,
+        "message": "gitlab service health is not reporting up.",
+        "name": "gitlab availability",
+        "noDataState": "alerting",
+        "notifications": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "grafana",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\") |> range(start: -15m) |> filter(fn: (r) => r._measurement == \"service_health\" and r.service == \"grafana\") |> last()",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ],
+      "alert": {
+        "alertRuleTags": { "service": "grafana" },
+        "conditions": [
+          {
+            "evaluator": { "params": [1], "type": "lt" },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "2m", "now"] },
+            "reducer": { "type": "last" },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "no_data",
+        "for": "2m",
+        "frequency": "1m",
+        "handler": 1,
+        "message": "grafana service health is not reporting up.",
+        "name": "grafana availability",
+        "noDataState": "alerting",
+        "notifications": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "influxdb",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\") |> range(start: -15m) |> filter(fn: (r) => r._measurement == \"service_health\" and r.service == \"influxdb\") |> last()",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ],
+      "alert": {
+        "alertRuleTags": { "service": "influxdb" },
+        "conditions": [
+          {
+            "evaluator": { "params": [1], "type": "lt" },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "2m", "now"] },
+            "reducer": { "type": "last" },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "no_data",
+        "for": "2m",
+        "frequency": "1m",
+        "handler": 1,
+        "message": "influxdb service health is not reporting up.",
+        "name": "influxdb availability",
+        "noDataState": "alerting",
+        "notifications": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "app",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\") |> range(start: -15m) |> filter(fn: (r) => r._measurement == \"service_health\" and r.service == \"app\") |> last()",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ],
+      "alert": {
+        "alertRuleTags": { "service": "app" },
+        "conditions": [
+          {
+            "evaluator": { "params": [1], "type": "lt" },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "2m", "now"] },
+            "reducer": { "type": "last" },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "no_data",
+        "for": "2m",
+        "frequency": "1m",
+        "handler": 1,
+        "message": "app service health is not reporting up.",
+        "name": "app availability",
+        "noDataState": "alerting",
+        "notifications": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "App container resources",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"docker_stats\")\n  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Container CPU by container",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "custom": { "drawStyle": "line" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"docker_stats\" and r._field == \"cpu_percent\")\n  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Container memory by container",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "custom": { "drawStyle": "line" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"docker_stats\" and r._field == \"memory_percent\")\n  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Disk usage by mount",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": { "drawStyle": "line" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"disk\" and r._field == \"used_percent\")\n  |> aggregateWindow(every: 5m, fn: max, createEmpty: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ]
+    }
+  ]
+}

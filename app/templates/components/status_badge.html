@@ -1,0 +1,8 @@
+{# Shared status badge. Usage:
+   {% from "components/status_badge.html" import status_badge %}
+   {{ status_badge(kind="status", status=device.monitoring_status) }}
+   kind prefixes the CSS class: badge-status-*, badge-deploy-*, badge-ztp-*, badge-infra-*
+#}
+{% macro status_badge(kind, status) %}
+<span class="badge badge-{{ kind }}-{{ status }}">{{ status }}</span>
+{% endmacro %}

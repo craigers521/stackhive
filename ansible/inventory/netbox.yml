@@ -1,0 +1,26 @@
+# NetBox dynamic inventory (research.md section 4).
+# Device role groups are keyed by role; the profile a device renders with is
+# carried as a `profile:<name>` tag (falls back to the role name), exposing
+# stackhive_profile to the iosxe role.
+
+plugin: netbox
+url: "{{ lookup('env', 'NETBOX_URL') | default('http://netbox:8000') }}"
+token: "{{ lookup('env', 'NETBOX_TOKEN') }}"
+validate_certs: false
+hostvars: false
+compose:
+  ansible_host: "device.primary_ip_address"
+  ansible_connection: "netconf"
+  ansible_network_os: "cisco.ios"
+  ansible_netconf_host: "device.primary_ip_address"
+  ansible_netconf_port: 12300
+  ansible_netconf_wait_for_ready: true
+  iosxe_profile: >-
+    (device.tags
+     | select('match', '^profile:')
+     | map('regex_replace', '^profile:', '')
+     | first)
+     | default(device.role | default('undefined'), true)
+groups:
+  by_role: "device.role"
+strict: true

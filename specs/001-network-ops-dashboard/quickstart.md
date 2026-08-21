@@ -5,7 +5,7 @@
 - Docker and Docker Compose installed (Docker Desktop 4.27+ or equivalent)
 - **Minimum 8 GB RAM** (GitLab CE 2GB, NetBox 1GB, Grafana/InfluxDB 1GB, dashboard/traefik/telegraf 512MB, remainder for Ansible job containers)
 - **1 GB swap** required on host (GitLab CE requires swap for memory-constrained operation)
-- **20 GB disk space** (GitLab CE ~10GB, NetBox ~2GB, image layers ~5GB, InfluxDB/data ~3GB)
+- **40 GB disk space minimum, 100 GB+ recommended** (GitLab CE ~10GB, NetBox ~2GB, image layers ~5GB, InfluxDB/data ~20GB+ with 14-day MDT headroom for 500 devices)
 - Available ports: 80, 443, 8080 (dev)
 - Network access to managed devices (for integration tests)
 - DNS or `/etc/hosts` entries:
@@ -54,6 +54,7 @@ cp .env.example .env
 #    INFLUXDB_TOKEN=
 #    INFLUXDB_ORG=stackhive
 #    INFLUXDB_BUCKET=telemetry
+#    INFLUXDB_RETENTION_DAYS=14
 #
 #    # Meraki (optional, for Meraki onboarding)
 #    MERAKI_API_KEY=
@@ -83,7 +84,7 @@ curl --head --request GET --header "PRIVATE-TOKEN: $GITLAB_ROOT_PASSWORD" \
   "http://localhost:8080/gitlab/api/v4/application/settings/runner_registration_token"
 #    Then register:
 docker compose exec gitlab-runner gitlab-runner register \
-  --url http://gitlab:8090 \
+  --url http://gitlab:8090/gitlab \
   --token <registration-token> \
   --executor docker \
   --docker-image "python:3.12-slim" \
@@ -428,6 +429,19 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8080/api/deploy
 ```
 
 **Expected outcome**: Viewer is read-only on all write endpoints (403). Editor can create and edit profiles but cannot approve deployments (403). Admin has full access including deployment approval (200).
+
+---
+
+### Scenario 9: Telemetry Sizing Pilot
+
+Before finalizing production disk sizing, measure real InfluxDB growth with a small fleet:
+
+```bash
+# After ~10 representative devices have sent MDT telemetry for ~1 week:
+docker compose exec influxdb influx usage --org stackhive
+```
+
+**Expected outcome**: Record GB/week and extrapolate to 500 devices; adjust `INFLUXDB_RETENTION_DAYS` (default 14) and host disk (100 GB+ recommended) accordingly.
 
 ---
 

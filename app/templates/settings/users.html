@@ -1,0 +1,78 @@
+<div class="card bg-white">
+  <div class="card-header py-2 fw-semibold"><i class="bi bi-people me-2"></i>Users ({{ users | length }})</div>
+  <div class="card-body p-0">
+    {% if users %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0" id="users-table">
+        <thead class="table-light">
+          <tr><th>Username</th><th>Role</th><th>Status</th><th>Created</th></tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr {% if not u.is_active %}class="table-secondary"{% endif %}>
+            <td>
+              <strong>{{ u.username }}</strong>
+              {% if u.id == current_user.id %} <span class="badge bg-light text-dark border">you</span>{% endif %}
+              {% if not u.is_active %} <span class="badge badge-status-down">inactive</span>{% endif %}
+            </td>
+            <td>
+              <form method="post" action="{{ url_for('settings.user_update_form', user_id=u.id) }}" class="d-flex gap-1 align-items-center">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select class="form-select form-select-sm py-0 d-inline-block" style="width:auto" name="role" id="role-{{ u.id }}"
+                        title="Save to apply the role change">
+                  {% for r in roles %}
+                  <option value="{{ r }}" {% if u.role == r %}selected{% endif %} {% if u.id == current_user.id and r != 'admin' %}disabled{% endif %}>{{ r }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-outline-secondary btn-sm py-0">Save</button>
+              </form>
+            </td>
+            <td>
+              {% if u.is_active %}
+              <form method="post" action="{{ url_for('settings.user_update_form', user_id=u.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="is_active" value="0">
+                {% if u.id == current_user.id %}
+                <button type="submit" class="btn btn-outline-danger btn-sm py-0" disabled title="You cannot deactivate your own account">Deactivate</button>
+                {% elif u.role == 'admin' and active_admins <= 1 %}
+                <button type="submit" class="btn btn-outline-danger btn-sm py-0" disabled title="Cannot deactivate the last active admin">Deactivate</button>
+                {% else %}
+                <button type="submit" class="btn btn-outline-danger btn-sm py-0">Deactivate</button>
+                {% endif %}
+              </form>
+              {% else %}
+              <form method="post" action="{{ url_for('settings.user_update_form', user_id=u.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="is_active" value="1">
+                <button type="submit" class="btn btn-outline-success btn-sm py-0">Activate</button>
+              </form>
+              {% endif %}
+            </td>
+            <td class="small text-secondary">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5">
+      <i class="bi bi-people display-6 text-secondary"></i>
+      <p class="mt-2 mb-1">No users exist.</p>
+      <p class="text-secondary small">Add a user with the form below to give someone access.</p>
+    </div>
+    {% endif %}
+    <form method="post" action="{{ url_for('settings.user_create_form') }}" class="row g-2 p-3 border-top align-items-center"
+          id="create-user-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col"><input type="text" class="form-control form-control-sm" name="username" placeholder="username" required></div>
+      <div class="col"><input type="password" class="form-control form-control-sm" name="password" placeholder="password (min 8)" minlength="8" required></div>
+      <div class="col-auto">
+        <select class="form-select form-select-sm" name="role">
+          {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-auto"><button type="submit" class="btn btn-primary btn-sm py-0"><i class="bi bi-person-plus me-1"></i>Add user</button></div>
+    </form>
+    <p class="p-3 pt-0 mb-0 text-secondary small">Deactivated users cannot log in; the last active admin cannot be deactivated.</p>
+  </div>
+</div>

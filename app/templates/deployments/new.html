@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}New deployment{% endblock %}
+{% block page_title %}New deployment{% endblock %}
+{% block content %}
+<form method="post" action="{{ url_for('deployments.create') }}" class="row g-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="col-lg-5">
+    <div class="card bg-white">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-collection me-2"></i>Profile</div>
+      <div class="card-body">
+        <label class="form-label small" for="dep-profile">Configuration profile</label>
+        {# HTMX loads the matching device checkboxes server-side on change
+           (the plan's sole JS dependency) — replaces the old inline script. #}
+        <select class="form-select form-select-sm" id="dep-profile" name="profile_id"
+                hx-get="{{ url_for('deployments.device_options') }}"
+                hx-trigger="change" hx-target="#dep-devices" hx-swap="innerHTML">
+          <option value="">— select profile —</option>
+          {% for p in profiles %}
+          <option value="{{ p.id }}">{{ p.name }} ({{ p.device_role }})</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Only active profiles are listed. Target devices are limited to the profile's device role.</div>
+      </div>
+    </div>
+    <div class="card bg-white mb-3">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-chat-left-text me-2"></i>Commit message</div>
+      <div class="card-body">
+        <input type="text" class="form-control form-control-sm" name="message" placeholder="Why are we deploying?">
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card bg-white">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-hdd-network me-2"></i>Target devices</div>
+      <div class="card-body">
+        <div id="dep-devices">
+          <p class="text-secondary small mb-0">Select a profile to load its devices.</p>
+        </div>
+        <p class="form-text">Cloud-managed, stale, and in-flight devices are excluded and block the deployment (409).</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="d-flex gap-2">
+      <button type="submit" name="action" value="preview" class="btn btn-outline-primary">
+        <i class="bi bi-eye me-1"></i>Preview rendered config
+      </button>
+      <button type="submit" name="action" value="create" class="btn btn-primary">
+        <i class="bi bi-rocket-takeoff me-1"></i>Create deployment
+      </button>
+      <a href="{{ url_for('deployments.list') }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

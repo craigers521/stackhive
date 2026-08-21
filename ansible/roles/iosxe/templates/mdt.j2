@@ -1,0 +1,17 @@
+!
+! --- mdt ---
+!
+{% if mdt.get('enabled', true) and mdt.get('host') %}
+{% for sub in mdt.get('subscriptions', []) %}
+mdt stream {{ sub.get('name') }}
+ sensor-path {{ sub.get('path') }}
+  sample-interval {{ sub.get('sample_interval_ms', mdt.get('update_interval_ms', 1000)) }}
+{% if sub.get('reporting', 'periodic') == 'on-change' %}
+  report on-change
+{% else %}
+  report periodic
+{% endif %}
+ destination {{ mdt.get('host') }}:{{ mdt.get('port', 80) }}
+!
+{% endfor %}
+{% endif %}

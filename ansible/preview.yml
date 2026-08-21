@@ -1,0 +1,16 @@
+---
+# StackHive preview render — no device connection.
+# Run: ansible-playbook preview.yml -i <inventory> --limit <hostname>
+#
+# Renders the full candidate configuration (snippets in order) with group_vars
+# (profile) + host_vars (device override) merged by Ansible, guaranteeing
+# preview == deploy input parity. Artifacts land in preview_out/<host>/.
+
+- name: StackHive configuration preview (render only)
+  hosts: all
+  gather_facts: false
+  connection: local
+  vars:
+    deploy_mode: preview
+  roles:
+    - role: iosxe

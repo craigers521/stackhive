@@ -1,0 +1,35 @@
+!
+! --- interfaces ---
+!
+{% for iface in interfaces %}
+interface {{ iface.name }}
+{% if iface.get('description') %}
+ description {{ iface.get('description') }}
+{% endif %}
+{% if iface.get('vrf') %}
+ vrf {{ iface.get('vrf') }}
+{% endif %}
+{% if iface.get('ip') %}
+ ip address {{ iface.get('ip') }}
+{% endif %}
+{% if iface.get('vlan') and iface.get('vlan') is not mapping %}
+ switchport mode access
+ switchport access vlan {{ iface.get('vlan') }}
+{% endif %}
+{% if iface.get('trunk_vlans') %}
+ switchport mode trunk
+ switchport trunk allowed vlan {{ iface.get('trunk_vlans') }}
+{% endif %}
+{% if iface.get('speed') %}
+ speed {{ iface.get('speed') }}
+{% endif %}
+{% if iface.get('duplex') %}
+ duplex {{ iface.get('duplex') }}
+{% endif %}
+{% if (iface.get('enabled') is defined and iface.get('enabled') is not none and not iface.get('enabled')) or (iface.get('enabled') is none and interface_shutdown_default) %}
+ shutdown
+{% else %}
+ no shutdown
+{% endif %}
+!
+{% endfor %}

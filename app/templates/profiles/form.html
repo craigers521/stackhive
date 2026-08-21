@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit profile' if profile else 'New profile' }}{% endblock %}
+{% block page_title %}{{ 'Edit: ' ~ profile.name if profile else 'New profile' }}{% endblock %}
+{% block content %}
+{% if errors %}
+  {% for e in errors %}
+  <div class="alert alert-danger py-2"><i class="bi bi-exclamation-triangle me-2"></i>{{ e }}</div>
+  {% endfor %}
+{% endif %}
+<form method="post" action="{{ url_for('profiles.update', pid=profile.id) if profile else url_for('profiles.create') }}" class="row g-3">
+  <div class="col-lg-5">
+    <div class="card bg-white mb-3">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-info-circle me-2"></i>Profile</div>
+      <div class="card-body">
+        <div class="mb-2">
+          <label class="form-label small" for="pf-name">Name</label>
+          <input type="text" class="form-control form-control-sm" id="pf-name" name="name" required
+                 value="{{ profile.name if profile else '' }}" pattern="[A-Za-z0-9_-]+"
+                 title="alphanumerics, hyphens, underscores">
+          <div class="form-text">Maps to <code>group_vars/&lt;name&gt;/</code> in the Git repo. Alphanumerics, hyphens, underscores.</div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small" for="pf-role">Target device role</label>
+          <select class="form-select form-select-sm" name="device_role_select" id="pf-role">
+            {% for r in role_options %}
+            <option value="{{ r }}" {% if profile and profile.device_role == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+            {% if profile and profile.device_role not in role_options %}
+            <option value="{{ profile.device_role }}" selected>{{ profile.device_role }}</option>
+            {% endif %}
+            <option value="" {% if not profile %}selected{% endif %}>— new role —</option>
+          </select>
+        </div>
+        <div class="mb-2" id="pf-role-custom">
+          <label class="form-label small" for="pf-role-text">Custom role</label>
+          <input type="text" class="form-control form-control-sm" name="device_role" id="pf-role-text"
+                 value="{{ profile.device_role if profile and profile.device_role not in role_options else '' }}" placeholder="e.g. switch-leaf">
+          <div class="form-text">Used only when “— new role —” is selected above.</div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small" for="pf-desc">Description</label>
+          <input type="text" class="form-control form-control-sm" id="pf-desc" name="description" value="{{ profile.description or '' if profile else '' }}">
+        </div>
+        <div class="form-text">Only one active profile may target a device role. Template sections render in order; variables persist to <code>vars.yml</code>.</div>
+      </div>
+    </div>
+
+    <div class="card bg-white mb-3">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-sliders me-2"></i>Variables (max 10)</div>
+      <div class="card-body">
+        {% for i in range(10) %}
+        {% set slot = variables[i] %}
+        <div class="row g-2 mb-1 align-items-center">
+          <div class="col-6">
+            <input type="text" class="form-control form-control-sm" name="v_key_{{ i }}" placeholder="variable name" value="{{ slot.key if slot else '' }}">
+          </div>
+          <div class="col-6">
+            <input type="text" class="form-control form-control-sm" name="v_value_{{ i }}" placeholder="value" value="{{ slot.value if slot else '' }}">
+          </div>
+        </div>
+        {% endfor %}
+        <div class="form-text">Rows without a name are ignored. Values are stored as strings; lists/dicts may use YAML flow syntax.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card bg-white mb-3">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-file-earmark-code me-2"></i>Templates (5 slots)</div>
+      <div class="card-body">
+        {% for i in range(5) %}
+        {% set slot = templates[i] %}
+        <div class="border rounded p-2 mb-2">
+          <div class="row g-2 mb-2 align-items-center">
+            <div class="col-5">
+              <input type="text" class="form-control form-control-sm" name="t_name_{{ i }}" placeholder="section name (e.g. vlans)" value="{{ slot.name if slot else '' }}">
+            </div>
+            <div class="col-3">
+              <input type="number" class="form-control form-control-sm" name="t_order_{{ i }}" placeholder="order" value="{{ slot.order if slot else i }}">
+            </div>
+            <div class="col-4 text-secondary small align-self-end">templates/{{ profile.name if profile else '<name>' }}/&lt;name&gt;.j2</div>
+          </div>
+          <textarea class="form-control form-control-sm code-block" name="t_content_{{ i }}" rows="5" placeholder="Jinja2 template source">{{ slot.content if slot else '' }}</textarea>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card bg-white mb-3">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-hdd-network me-2"></i>Interface templates (3 slots)</div>
+      <div class="card-body">
+        {% if interface_options %}
+        <div class="mb-2 small">
+          <span class="text-secondary me-1">Known interface types {% if interface_role %}for <strong>{{ interface_role }}</strong>{% else %}(across synced device types){% endif %}:</span>
+          {% for it in interface_options %}
+          <span class="badge text-bg-light border me-1">{{ it.type }} &times; {{ it.count }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-warning py-2 small mb-2">
+          No known interface definitions for the target role yet. Run an inventory sync and maintain a
+          DeviceType first; any type is accepted here but server-side validation enforces the counts.
+        </div>
+        {% endif %}
+        {% for i in range(3) %}
+        {% set slot = interfaces[i] %}
+        {% set slot_type = slot.interface_type if slot and slot.interface_type else '' %}
+        {% set slot_count = (interface_options | selectattr('type', 'equalto', slot_type) | map(attribute='count') | list | first) if slot_type else none %}
+        <div class="border rounded p-2 mb-2">
+          <div class="row g-2 mb-2">
+            <div class="col-4">
+              <input type="text" class="form-control form-control-sm" name="i_name_{{ i }}" placeholder="template name" value="{{ slot.name if slot else '' }}">
+            </div>
+            <div class="col-4">
+              {% if interface_options %}
+              <select class="form-select form-select-sm" name="i_type_{{ i }}">
+                <option value="">&mdash; select type &mdash;</option>
+                {% for it in interface_options %}
+                <option value="{{ it.type }}" {% if slot_type == it.type %}selected{% endif %}>{{ it.type }} (&times;{{ it.count }})</option>
+                {% endfor %}
+                {% if slot_type and slot_type not in (interface_options | map(attribute='type') | list) %}
+                <option value="{{ slot_type }}" selected>{{ slot_type }} (unknown)</option>
+                {% endif %}
+              </select>
+              {% else %}
+              <input type="text" class="form-control form-control-sm" name="i_type_{{ i }}" placeholder="interface type (e.g. GigabitEthernet)" value="{{ slot_type }}">
+              {% endif %}
+            </div>
+            <div class="col-4">
+              <input type="text" class="form-control form-control-sm" name="i_range_{{ i }}"
+                     placeholder="{% if slot_count %}all | 1-{{ slot_count }} | 1,3,5{% else %}range: all | 1-48 | 1,3,5{% endif %}"
+                     value="{{ slot.interface_range if slot else 'all' }}">
+            </div>
+          </div>
+          <textarea class="form-control form-control-sm code-block" name="i_content_{{ i }}" rows="4" placeholder="Jinja2 template applied to each matched interface">{{ slot.content if slot else '' }}</textarea>
+        </div>
+        {% endfor %}
+        <div class="form-text">Ranges are validated against the known device types for the target role after inventory sync.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>{{ 'Save changes' if profile else 'Create profile' }}</button>
+      <a href="{{ url_for('profiles.detail', pid=profile.id) if profile else url_for('profiles.list') }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,17 @@
+# File-provider configuration.
+#
+# Routers for the app are defined via Docker labels in docker-compose.yml
+# (dashboard catch-all, netbox, grafana, gitlab); this file only carries the
+# unauthenticated public ZTP route. `service: dashboard` resolves to the
+# service created from the app container's Docker labels — do not redefine a
+# same-named service here, duplicate provider objects break Traefik startup.
+http:
+  routers:
+    ztp-public:
+      # Served by the app at /ztp/... (no prefix strip: the application owns
+      # the /ztp path per contracts/ztp-contract.md).
+      rule: "PathPrefix(`/ztp`)"
+      service: dashboard
+      priority: 15
+      entrypoints:
+        - web

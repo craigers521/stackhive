@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}StackHive{% endblock %} · StackHive</title>
+  {# Plan constraint: Bootstrap CSS only; htmx is the sole JS dependency.
+     Assets are vendored under /static/vendor so the on-prem LAN serves
+     them locally instead of hitting a CDN at page load. #}
+  <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='vendor/bootstrap-icons.css') }}" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/overrides.css') }}">
+  <script src="{{ url_for('static', filename='vendor/htmx.min.js') }}" defer></script>
+</head>
+<body class="stackhive-body">
+  <div class="stackhive-shell">
+    <nav class="stackhive-sidebar" aria-label="Primary">
+      <div class="sidebar-brand">
+        <i class="bi bi-hexagon-fill me-2"></i><strong>StackHive</strong>
+      </div>
+      <ul class="nav nav-pills flex-column gap-1">
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}" href="{{ url_for('dashboard.index') }}">
+            <i class="bi bi-speedometer2 me-2"></i>Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('inventory') %}active{% endif %}" href="{{ url_for('inventory.list') }}">
+            <i class="bi bi-hdd-network me-2"></i>Inventory
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('profiles') %}active{% endif %}" href="{{ url_for('profiles.list') }}">
+            <i class="bi bi-collection me-2"></i>Profiles
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('deployments') %}active{% endif %}" href="{{ url_for('deployments.list') }}">
+            <i class="bi bi-rocket-takeoff me-2"></i>Deployments
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('monitoring') %}active{% endif %}" href="{{ url_for('monitoring.devices') }}">
+            <i class="bi bi-activity me-2"></i>Monitoring
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('onboarding') %}active{% endif %}" href="{{ url_for('onboarding.index') }}">
+            <i class="bi bi-plug me-2"></i>Onboarding
+          </a>
+        </li>
+        {% if current_user.is_authenticated and current_user.can_admin() %}
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('settings') %}active{% endif %}" href="{{ url_for('settings.index') }}">
+            <i class="bi bi-gear me-2"></i>Settings
+          </a>
+        </li>
+        {% endif %}
+      </ul>
+      <div class="sidebar-tools mt-4">
+        <div class="small text-uppercase text-secondary fw-semibold mb-2">Tools</div>
+        <ul class="nav nav-pills flex-column gap-1">
+          <li class="nav-item">
+            <a class="nav-link" href="{{ tool_links['grafana'] }}" target="_blank" rel="noopener">
+              <i class="bi bi-bar-chart-line me-2"></i>Grafana <i class="bi bi-box-arrow-up-right small"></i>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ tool_links['netbox'] }}" target="_blank" rel="noopener">
+              <i class="bi bi-diagram-3 me-2"></i>NetBox <i class="bi bi-box-arrow-up-right small"></i>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ tool_links['gitlab'] }}" target="_blank" rel="noopener">
+              <i class="bi bi-gitlab me-2"></i>GitLab <i class="bi bi-box-arrow-up-right small"></i>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+    <div class="stackhive-main">
+      <header class="stackhive-topbar d-flex justify-content-between align-items-center">
+        <h1 class="h4 mb-0">{% block page_title %}{% endblock %}</h1>
+        {% if current_user.is_authenticated %}
+        {# Server-rendered user menu: no Bootstrap JS dropdown on the on-prem LAN. #}
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-secondary small">
+            <i class="bi bi-person-circle me-1"></i>{{ current_user.username }}
+            <span class="badge bg-secondary ms-1">{{ current_user.role }}</span>
+          </span>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('settings.change_own_password') }}">
+            <i class="bi bi-key me-1"></i>Password
+          </a>
+          <form method="post" action="{{ url_for('auth.login_logout') }}">
+            {{ csrf_token() if csrf_token is defined else '' }}
+            <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Log out</button>
+          </form>
+        </div>
+        {% endif %}
+      </header>
+      {# Alerts are non-dismissible: the page reloads (PRG) and they clear. #}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category if category in ('success','danger','warning','info') else 'info' }} py-2" role="alert">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      <main class="stackhive-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

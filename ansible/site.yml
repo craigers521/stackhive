@@ -1,0 +1,15 @@
+---
+# StackHive live deployment — apply rendered configuration over NETCONF.
+# Run (CI): ansible-playbook site.yml -i inventory/netbox.yml --limit <devices>
+#
+# The cisco.ios.ios_config module uses the NETCONF candidate datastore:
+# the candidate is committed atomically; on validation failure the module
+# aborts the commit and leaves the running config untouched (merge semantics).
+
+- name: StackHive live deployment
+  hosts: all
+  gather_facts: false
+  vars:
+    deploy_mode: live
+  roles:
+    - role: iosxe

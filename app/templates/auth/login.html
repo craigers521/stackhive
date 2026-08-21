@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · StackHive</title>
+  <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='vendor/bootstrap-icons.css') }}" rel="stylesheet">
+  <style>
+    body { background: #10161f; min-height: 100vh; display: flex; align-items: center; }
+  </style>
+</head>
+<body>
+  <main class="container" style="max-width: 420px;">
+    <div class="card shadow">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-1 text-center">StackHive</h1>
+        <p class="text-center text-secondary small mb-4">Network operations dashboard</p>
+        {% if error %}
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
+        <form method="post" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" name="username" required autofocus autocomplete="username">
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Sign in</button>
+        </form>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

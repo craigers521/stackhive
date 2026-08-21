@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card bg-white device-health-card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-secondary small text-uppercase fw-semibold">Devices</span>
+          <span class="badge bg-primary-subtle text-primary">{{ summary.device_health.total }}</span>
+        </div>
+        <div class="d-flex gap-4">
+          <div><span class="text-success fs-5 fw-semibold">{{ summary.device_health.up }}</span><div class="small text-secondary">up</div></div>
+          <div><span class="text-danger fs-5 fw-semibold">{{ summary.device_health.down }}</span><div class="small text-secondary">down</div></div>
+        </div>
+        <a class="d-inline-block mt-2 btn btn-outline-primary btn-sm" href="{{ url_for('inventory.list') }}">View inventory</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card bg-white">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-secondary small text-uppercase fw-semibold">Pending approvals</span>
+          <span class="badge bg-warning text-dark">{{ summary.pending_approvals|length }}</span>
+        </div>
+        {% if summary.pending_approvals %}
+        <ul class="list-unstyled mb-2 small">
+          {% for d in summary.pending_approvals[:4] %}
+          <li class="mb-1"><a href="{{ url_for('deployments.detail_view', did=d.deployment_id) }}">{{ d.profile_name or 'profile ?' }}</a>
+            <span class="text-secondary">· {{ d.triggered_by or 'system' }}</span></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="small text-secondary mb-2">Nothing awaiting approval.</p>
+        {% endif %}
+        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('deployments.list') }}">Deployments</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card bg-white">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-secondary small text-uppercase fw-semibold">Onboarding</span>
+          <span class="badge bg-info-subtle text-info">{{ summary.ztp.active if summary.ztp and summary.ztp.active is defined else '—' }}</span>
+        </div>
+        <p class="small text-secondary mb-2">Zero-touch provisioning via the ZTP server.</p>
+        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('onboarding.index') }}">Onboarding queue</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card bg-white">
+  <div class="card-header py-2 d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-clock-history me-2"></i>Recent deployments</span>
+    <a class="small" href="{{ url_for('deployments.list') }}">View all</a>
+  </div>
+  <div class="card-body p-0">
+    {% if summary.recent_deployments %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>Profile</th><th>Devices</th><th>Status</th><th>Triggered by</th><th>Started</th></tr></thead>
+        <tbody>
+          {% for d in summary.recent_deployments %}
+          <tr>
+            <td><a href="{{ url_for('deployments.detail_view', did=d.deployment_id) }}"><strong>{{ d.profile_name or '—' }}</strong></a></td>
+            <td><span class="badge bg-light text-dark border">{{ d.device_ids|length }}</span></td>
+            <td><span class="badge badge-deploy-{{ d.status }}">{{ d.status }}</span></td>
+            <td class="small">{{ d.triggered_by or '—' }}</td>
+            <td class="small text-secondary">{{ d.triggered_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <i class="bi bi-rocket-takeoff display-6 text-secondary"></i>
+      <p class="mt-2 mb-1">No deployments yet.</p>
+      <p class="text-secondary small">Create a deployment from a profile to render and push configuration.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

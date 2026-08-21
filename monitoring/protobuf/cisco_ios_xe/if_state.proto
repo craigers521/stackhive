@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+// Cisco IOS-XE interface operational state telemetry
+// (Cisco-IOS-XE-ifmgr-oper:interfaces).
+package cisco_ios_xe.if_state;
+
+message Interfaces {
+  repeated Interface interface = 1;
+}
+
+message Interface {
+  string name = 1;
+  string description = 2;
+  string state = 3; // operational state
+  string line_protocol = 4;
+  string duplex = 5;
+  string speed = 6;
+  uint64 in_octets = 7;
+  uint64 out_octets = 8;
+  uint64 in_ucast_pkts = 9;
+  uint64 out_ucast_pkts = 10;
+  uint64 in_errors = 11;
+  uint64 out_errors = 12;
+  uint64 in_discards = 13;
+  uint64 out_discards = 14;
+}

@@ -1,0 +1,25 @@
+api:
+  dashboard: true
+  insecure: true
+
+entryPoints:
+  web:
+    # Unified entry point; all path-routed services (/, /netbox, /grafana,
+    # /gitlab, /ztp) resolve through this port (see .env.example URLs).
+    address: ":8080"
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: stackhive
+  file:
+    filename: "/etc/traefik/dynamic.yml"
+    watch: true
+
+log:
+  level: INFO
+
+accessLog: {}

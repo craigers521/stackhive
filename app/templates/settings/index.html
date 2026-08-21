@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-6">
+    <form method="post" action="{{ url_for('settings.save') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="card bg-white mb-4">
+        <div class="card-header py-2 fw-semibold"><i class="bi bi-sliders me-2"></i>System settings</div>
+        <div class="card-body">
+          {% for key in keys %}
+          {% set value = settings.get(key, '') %}
+          <div class="mb-2">
+            <label class="form-label small mb-0" for="set-{{ key }}">{{ key }}</label>
+            <input type="text" class="form-control form-control-sm" id="set-{{ key }}" name="{{ key }}"
+                   value="{{ value if value is not none else '' }}" {% if value is sameas false or (value is defined and value|string in ('false', 'False')) %} data-false="1"{% endif %}>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </form>
+
+    <div class="card bg-white mb-4">
+      <div class="card-header py-2 fw-semibold"><i class="bi bi-key me-2"></i>Credentials</div>
+      <div class="card-body">
+        {% for service in ('netbox', 'gitlab', 'grafana', 'meraki') %}
+        <form method="post" action="{{ url_for('settings.rotate', service_name=service) }}" class="row g-2 mb-2 align-items-center">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-3 small"><strong>{{ service }}</strong><div class="text-secondary">{{ settings.get(service ~ ('_token' if service != 'meraki' else '_api_key') or '', '') or 'not set' }}</div></div>
+          <div class="col-5">
+            <input type="password" class="form-control form-control-sm" name="token" placeholder="new token" autocomplete="off">
+          </div>
+          <div class="col-3">
+            <input type="text" class="form-control form-control-sm" name="base_url" placeholder="base URL (optional)">
+          </div>
+          <div class="col-1"><button type="submit" class="btn btn-outline-primary btn-sm py-0">Rotate</button></div>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    {% include "settings/users.html" %}
+  </div>
+</div>
+{% endblock %}

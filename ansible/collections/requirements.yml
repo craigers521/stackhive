@@ -1,0 +1,10 @@
+---
+# Pinned Ansible collections — the app container and the GitLab runner install
+# these exact versions so preview rendering and live deployment are identical.
+collections:
+  - name: cisco.ios
+    version: "11.3.0"
+  - name: ansible.netcommon
+    version: "8.4.0"
+  - name: netbox_community.netbox_ansible
+    version: "7.0.0"

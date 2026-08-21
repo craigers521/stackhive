@@ -1,0 +1,105 @@
+---
+# Default variables for the iosxe role.
+# Profile variables (group_vars/<profile>/vars.yml) and device overrides
+# (host_vars/<hostname>.yml) override these defaults.
+
+enabled_snippets:
+  - aaa
+  - netconf
+  - mdt
+  - vlan
+  - routing
+  - interfaces
+
+# Directory containing profile-provided template overrides
+# (templates/<profile>/<snippet>.j2). Resolution order per snippet:
+#   1. {{ iosxe_profile_templates_dir }}/<snippet>.j2  (profile override)
+#   2. role default templates/<snippet>.j2
+iosxe_profile_templates_dir: "{{ playbook_dir }}/../templates"
+
+# Where preview artifacts are written (one directory per host).
+iosxe_output_dir: "{{ playbook_dir }}/preview_out/{{ inventory_hostname }}"
+
+# Domain / naming
+iosxe_domain_name: ""
+iosxe_hostname_overridable: false
+
+# DNS / NTP
+iosxe_dns_servers: []
+iosxe_dns_view: ""
+iosxe_ntp_servers: []
+iosxe_ntp_source_interface: ""
+
+# Bootstrap (day-0, ZTP)
+iosxe_bootstrap:
+  enable_password: ""
+  console_speed: 9600
+  ssh_access:
+    enabled: true
+    rsa_key_size: 2048
+    vrf: management
+
+# AAA
+aaa:
+  enable_secret: ""
+  ssh:
+    enabled: true
+  telnet:
+    enabled: false
+  local_users: []          # [{ name, privilege, secret_hash }]
+  logging:
+    host: ""
+    facility: 16
+    level: informational
+  tacacs:
+    enabled: false
+    servers: []
+    key: ""
+
+# NETCONF/YANG
+netconf:
+  enabled: true
+  listen_interfaces: ["management"]
+  default_sensor_paths:
+    - "Cisco-IOS-XE-ifmgr-oper:interfaces"
+    - "Cisco-IOS-XE-processor-entity-oper:processors"
+    - "Cisco-IOS-XE-memory-oper:memory-statistics"
+
+# Model-Driven Telemetry (dial-out)
+mdt:
+  enabled: true
+  host: ""
+  port: 80
+  update_interval_ms: 1000
+  subscriptions:
+    - name: if-state
+      path: /Cisco-IOS-XE-ifmgr-oper:interfaces/interface
+      sample_interval_ms: 30000
+      reporting: on-change
+    - name: cpu-memory
+      path: /Cisco-IOS-XE-processor-entity-oper:processors/processor
+      sample_interval_ms: 60000
+      reporting: periodic
+
+# VLANs
+vlans: []                  # [{ id, name, description }]
+
+# Interfaces
+interfaces: []             # [{ name, description, enabled, vlan, ip, vrf, speed, duplex, shutdown }]
+interface_shutdown_default: false
+
+# Routing
+routing:
+  ospf:
+    enabled: false
+    process_id: 100
+    area_default: 0
+    networks: []           # [{ prefix, area }]
+    passiv_interfaces: []
+  bgp:
+    enabled: false
+    as_number: null
+    neighbors: []          # [{ ip, remote_as, description }]
+  static_routes: []        # [{ prefix, next_hop, vrf, distance }]
+  ip_forwarding: true
+  ip_routing_vrfs: []

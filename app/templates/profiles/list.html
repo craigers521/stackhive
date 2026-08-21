@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Profiles{% endblock %}
+{% block page_title %}Configuration Profiles{% endblock %}
+{% block content %}
+<form method="get" action="{{ url_for('profiles.list') }}" class="d-flex gap-2 align-items-end mb-3">
+  <div>
+    <label class="form-label small mb-1" for="f-role">Role</label>
+    <select name="role" id="f-role" class="form-select form-select-sm">
+      <option value="">All roles</option>
+      {% for r in role_options %}
+      <option value="{{ r }}" {% if role == r %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Filter</button>
+  {% if role %}<a href="{{ url_for('profiles.list') }}" class="btn btn-outline-secondary btn-sm">Reset</a>{% endif %}
+  <div class="ms-auto">
+    <a href="{{ url_for('profiles.new') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>New profile</a>
+  </div>
+</form>
+
+{% if profiles %}
+<div class="table-responsive">
+  <table class="table table-hover table-stack align-middle bg-white">
+    <thead class="table-light">
+      <tr><th>Name</th><th>Device role</th><th>Templates</th><th>Variables</th><th>Updated</th><th>By</th><th>Active</th></tr>
+    </thead>
+    <tbody>
+      {% for p in profiles %}
+      <tr>
+        <td><a href="{{ url_for('profiles.detail', pid=p.id) }}"><strong>{{ p.name }}</strong></a></td>
+        <td><span class="badge bg-light text-dark border">{{ p.device_role }}</span></td>
+        <td>{{ p.templates|length }}</td>
+        <td>{{ p.variables|length }}</td>
+        <td class="text-secondary small">{{ p.updated_at.strftime('%Y-%m-%d %H:%M') if p.updated_at else '—' }}</td>
+        <td class="small">{{ p.updated_by.username if p.updated_by else '—' }}</td>
+        <td>{% if p.is_active %}<span class="badge bg-success-subtle text-success">active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">inactive</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card bg-white">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-collection display-6 text-secondary"></i>
+    <p class="mt-2 mb-1">No profiles defined yet.</p>
+    <p class="text-secondary small mb-3">A profile maps to Ansible <code>group_vars/&lt;name&gt;</code> plus Jinja2 templates.</p>
+    <a href="{{ url_for('profiles.new') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Create the first profile</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,179 @@
+{
+  "uid": "stackhive-device-health",
+  "title": "Device Health",
+  "tags": ["stackhive", "device"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "hostname",
+        "label": "Hostname",
+        "type": "query",
+        "datasource": { "type": "influxdb", "uid": "influxdb" },
+        "query": "show tag values with key: \"hostname\" from \"stackhive-telemetry\"",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "ip",
+        "label": "IP",
+        "type": "query",
+        "datasource": { "type": "influxdb", "uid": "influxdb" },
+        "query": "show tag values with key: \"ip\" from \"stackhive-telemetry\"",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Device status",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"device_status\" and r.hostname == \"$hostname\") |> last()",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "up", "color": "green" } } },
+            { "type": "value", "options": { "0": { "text": "down", "color": "red" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "alert": {
+        "alertRuleTags": { "hostname": "$hostname" },
+        "conditions": [
+          {
+            "evaluator": { "params": [1], "type": "lt" },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "2m", "now"] },
+            "reducer": { "type": "last" },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "no_data",
+        "for": "2m",
+        "frequency": "1m",
+        "handler": 1,
+        "message": "Device is not reporting up: last device_status value is not 1 or no data received.",
+        "name": "Device availability",
+        "noDataState": "alerting",
+        "notifications": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "CPU utilization",
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"cpu\" and r.hostname == \"$hostname\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Memory utilization",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"memory\" and r.hostname == \"$hostname\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Interface utilization",
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 8 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "fieldConfig": {
+        "defaults": { "unit": "bps", "custom": { "drawStyle": "line" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"interface_state\" and r.hostname == \"$hostname\")\n  |> filter(fn: (r) => r._field == \"in_octets\")\n  |> aggregateWindow(every: 30s, fn: last, createEmpty: false)\n  |> derive(column: \"_value\", unit: 30s, keepFirst: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        },
+        {
+          "refId": "B",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"interface_state\" and r.hostname == \"$hostname\")\n  |> filter(fn: (r) => r._field == \"out_octets\")\n  |> aggregateWindow(every: 30s, fn: last, createEmpty: false)\n  |> derive(column: \"_value\", unit: 30s, keepFirst: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Interface errors",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "influxdb", "uid": "influxdb" },
+      "fieldConfig": {
+        "defaults": { "unit": "cps", "custom": { "drawStyle": "line" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"interface_state\" and r.hostname == \"$hostname\")\n  |> filter(fn: (r) => r._field == \"in_errors\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> derive(column: \"_value\", unit: 1m, keepFirst: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        },
+        {
+          "refId": "B",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"interface_state\" and r.hostname == \"$hostname\")\n  |> filter(fn: (r) => r._field == \"out_errors\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> derive(column: \"_value\", unit: 1m, keepFirst: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        },
+        {
+          "refId": "C",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"interface_state\" and r.hostname == \"$hostname\")\n  |> filter(fn: (r) => r._field == \"in_discards\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> derive(column: \"_value\", unit: 1m, keepFirst: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        },
+        {
+          "refId": "D",
+          "query": "from(bucket: \"stackhive-telemetry\")\n  |> range(start: -$__fromTime)\n  |> filter(fn: (r) => r._measurement == \"interface_state\" and r.hostname == \"$hostname\")\n  |> filter(fn: (r) => r._field == \"out_discards\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> derive(column: \"_value\", unit: 1m, keepFirst: false)",
+          "queryType": "randomWalk",
+          "resultFormat": "timeSeries"
+        }
+      ]
+    }
+  ]
+}

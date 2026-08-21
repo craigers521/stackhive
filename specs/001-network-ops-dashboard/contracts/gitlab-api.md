@@ -91,7 +91,7 @@ ansible-vars/
 | `main`            | Production branch — approved, deployed configurations        |
 | `working`         | Working branch — auto-committed changes from the dashboard   |
 
-Configurable via `git_production_branch` and `git_working_branch` in system settings.
+Configurable via `git_production_branch` and `git_working_branch` in system settings. The working branch is **shared** by all editors (no per-user branches in v1); concurrent auto-commits serialize via commit + rebase.
 
 ### Auto-Commit Workflow
 
@@ -105,7 +105,7 @@ When an Editor modifies a profile or device override via the dashboard:
 
 **Error handling**:
 - If the push is rejected (remote has new commits), the dashboard attempts a rebase.
-- If a merge conflict occurs during rebase, the dashboard surfaces a 409 Conflict to the user with details.
+- If the rebase hits a merge conflict — **or fails for any other reason** — the dashboard surfaces a 409 Conflict to the user with git error details.
 - The user (or admin) must resolve the conflict via GitLab's merge request interface.
 
 ### Merge Request Trigger
@@ -211,6 +211,8 @@ The `.gitlab-ci.yml` in the repository defines at minimum:
 | render        | `render-configs`     | Dry-run Ansible template rendering           |
 | deploy        | `deploy-configs`     | Execute Ansible playbook via NETCONF         |
 | notify        | `notify-status`      | Webhook back to dashboard with results       |
+
+**Mid-deployment connectivity loss**: If the runner loses access to a managed device mid-deployment, only that host's Ansible task fails; other hosts continue. The notify webhook reports per-device results; the dashboard marks the deployment `failed` if any device failed and names the failed devices (per-device `DeploymentDevice` rows keep their own `success`/`failed` outcomes). The verify stage flags unverified devices, and the operator re-runs a targeted deployment for the failed hosts.
 
 ### Webhook Callback
 

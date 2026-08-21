@@ -1,0 +1,40 @@
+!
+! --- bootstrap (day-0, ZTP) ---
+!
+hostname {{ inventory_hostname }}
+{% if iosxe_domain_name %}
+ip domain name {{ iosxe_domain_name }}
+{% endif %}
+clock timezone UTC 0
+service password-encryption
+{% if iosxe_bootstrap.get('enable_password') %}
+enable secret {{ iosxe_bootstrap.get('enable_password') }}
+{% endif %}
+line console 0
+ exec-timeout 30 0
+ logging synchronous
+ login local
+ speed {{ iosxe_bootstrap.get('console_speed', 9600) }}
+!
+ip ssh version 2
+ip ssh time-out 60
+line vty 0 4
+ login local
+ transport input ssh
+!
+ip netconf
+ no shutdown
+!
+netconf-yang
+netconf-yang feature actions
+netconf-yang feature notifications
+!
+{% if mdt.get('enabled', true) and mdt.get('host') %}
+mdt stream if-state
+ sensor-path /Cisco-IOS-XE-ifmgr-oper:interfaces/interface
+  sample-interval {{ mdt.get('update_interval_ms', 1000) }}
+ destination {{ mdt.get('host') }}:{{ mdt.get('port', 80) }}
+!
+{% endif %}
+boot startup
+!

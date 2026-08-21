@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "components/status_badge.html" import status_badge %}
+{% block title %}Deployment #{{ record.id }}{% endblock %}
+{% block page_title %}Deployment #{{ record.id }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    {{ status_badge(kind="deploy", status=record.status) }}
+    <span class="text-secondary small">started {{ record.started_at.strftime('%Y-%m-%d %H:%M:%S') }}{% if record.completed_at %} · completed {{ record.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}{% endif %}</span>
+  </div>
+  {% if record.status == 'pending' and current_user.is_authenticated and current_user.can_admin() %}
+  <form method="post" action="{{ url_for('deployments.approve', did=record.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-success btn-sm" title="Merges the merge request and triggers the pipeline"><i class="bi bi-check2-circle me-1"></i>Approve</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card bg-white"><div class="card-body small">
+      <div class="text-secondary text-uppercase fw-semibold mb-1">Profile</div>
+      <strong>{{ record.profile.name if record.profile else '—' }}</strong><br>
+      <span class="text-secondary">role: {{ record.profile.device_role if record.profile else '—' }}</span>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="card bg-white"><div class="card-body small">
+      <div class="text-secondary text-uppercase fw-semibold mb-1">Pipeline</div>
+      {% if record.pipeline_url %}
+      <a href="{{ record.pipeline_url }}" target="_blank" rel="noopener">pipeline {{ record.pipeline_id }}</a><br>
+      {% else %}
+      <span class="text-secondary">{{ 'pipeline id %s' % record.pipeline_id if record.pipeline_id else 'not triggered' }}</span><br>
+      {% endif %}
+      <span class="text-secondary">status: {{ record.pipeline_status or '—' }}</span>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="card bg-white"><div class="card-body small">
+      <div class="text-secondary text-uppercase fw-semibold mb-1">Git</div>
+      <div class="text-break">commit <code>{{ record.git_commit_sha | default('—') }}</code></div>
+      <div class="text-break">branch <code>{{ record.git_branch or '—' }}</code></div>
+      approved by {{ record.approver.username if record.approver else '—' }}
+    </div></div>
+  </div>
+</div>
+
+{% if record.error_message %}
+<div class="alert alert-danger py-2"><i class="bi bi-exclamation-triangle me-2"></i>{{ record.error_message }}</div>
+{% endif %}
+
+<div class="card bg-white mb-3">
+  <div class="card-header py-2 fw-semibold">Per-device results ({{ record.devices | length }})</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light"><tr><th>Device</th><th>Status</th><th>Message</th><th>Diff</th></tr></thead>
+        <tbody>
+          {% for row in record.devices %}
+          <tr>
+            <td><a href="{{ url_for('inventory.detail', netbox_id=row.device.netbox_id) }}"><strong>{{ row.device.hostname }}</strong></a></td>
+            <td>{{ status_badge(kind="deploy", status=row.status) }}</td>
+            <td class="small">{{ row.message or '—' }}</td>
+            <td class="small">
+              {% if row.config_diff %}
+              <details>
+                <summary class="small">show diff</summary>
+                <pre class="m-0 p-3 code-block small mt-2">{{ row.config_diff }}</pre>
+              </details>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if record.preview_output %}
+<div class="card bg-white">
+  <div class="card-header py-2 fw-semibold d-flex justify-content-between">
+    <span>Rendered configuration (preview)</span>
+    <a class="small" href="{{ url_for('deployments.preview_page', did=record.id) }}">Open preview page</a>
+  </div>
+  <div class="card-body p-0"><pre class="m-0 p-3 code-block small">{{ record.preview_output }}</pre></div>
+</div>
+{% endif %}
+{% endblock %}

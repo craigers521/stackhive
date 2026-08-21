@@ -15,6 +15,8 @@ A containerized network operations dashboard providing a unified web UI for devi
 **Primary Dependencies**:
 - Flask 3.x with Flask-SQLAlchemy, Flask-Login, Flask-WTF
 - Bootstrap 5 (CSS-only, minimal JS per FR-018)
+- HTMX 2.x (~24 KB; the single client-side JS dependency used for progressive enhancement)
+- Flask-Caching (in-memory backend; 5-minute TTL for NetBox/Grafana queries)
 - ansible-core 2.20+ with cisco.ios, ansible.netcommon collections
 - Jinja2 (Ansible native templating)
 - netmiko/napalm for device connectivity (fallback)
@@ -36,24 +38,27 @@ A containerized network operations dashboard providing a unified web UI for devi
 **Project Type**: Web application with integrated infrastructure services (monorepo docker-compose deployment)
 
 **Performance Goals**:
-- Dashboard page load < 2s for inventory of up to 500 devices
-- Configuration preview generation < 30s per device
+- Dashboard page load < 2s for inventory of up to 500 devices (independent NFR — SC-001 measures clicks, not latency)
+- Configuration preview generation < 30s per device (supports SC-003: deploy with visible status feedback within 2 minutes)
 - Deployment to single device < 2 minutes (SC-003)
-- NetBox inventory sync < 10s for full refresh
+- NetBox inventory sync < 10s for full refresh (independent NFR — inventory freshness UX)
 
 **Constraints**:
-- Minimal client-side JavaScript (FR-018: server-rendered Bootstrap)
-- Atomic NETCONF commits only (FR-010: no partial config)
+- Minimal client-side JavaScript (FR-018: server-rendered Bootstrap; HTMX 2.x at ~24 KB is the sole JS dependency)
+- Atomic NETCONF commits only (FR-010: no partial config). All v1 managed devices must support NETCONF/YANG (spec assumption); non-NETCONF devices are rejected at deployment (422) — netmiko/napalm SSH fallback is reserved for the vendor-agnostic phase
 - Zero external SSO dependency for initial release (local auth only)
 - Single compose file deployment (SC-008)
-- Credentials never stored in files — environment variables only
+- Credentials are never committed to version control or stored in plaintext in the config repo. Initial bootstrap uses environment variables or a gitignored `.env`; at runtime tokens resolve from the encrypted (Fernet) DB credential store, with `.env` as bootstrap fallback
+- WCAG 2.1 AA baseline: keyboard operability, semantic landmarks, labeled controls, 4.5:1 contrast (Bootstrap 5 defaults cover most)
+- Timestamps are UTC (ISO 8601) and the UI is English-only in v1 (no localization)
+- HTTP over the trusted LAN is acceptable in v1; Traefik TLS termination (self-signed or ACME resolver) is supported but not required for the initial release
 
 **Scale/Scope**: Initial deployment targets 50-500 managed devices; single-admin + editor team of 3-10 users; three RBAC roles
 
 **Resource Requirements**:
 - **RAM**: Minimum 8 GB (GitLab CE 2GB tuned, NetBox 1GB, Grafana/InfluxDB 1GB, dashboard/traefik/telegraf 512MB, remainder for Ansible job containers)
 - **Swap**: 1 GB required on host (GitLab CE)
-- **Disk**: 20 GB minimum (GitLab ~10GB, NetBox ~2GB, image layers ~5GB, data ~3GB)
+- **Disk**: 40 GB minimum, 100 GB+ recommended for sustained 500-device telemetry (GitLab ~10GB, NetBox ~2GB, image layers ~5GB, InfluxDB ~20GB+ with 14-day retention)
 - **Network**: Runner container has direct access to managed device network (NETCONF port 830, SSH port 22)
 
 ## Constitution Check
@@ -210,7 +215,7 @@ stackhive/
 
 2. **Ansible execution via GitLab Runner** — Config deployments execute inside Docker containers spawned by the GitLab Runner (Docker executor). The runner mounts the Docker socket (`/var/run/docker.sock`) and has direct network access to managed devices. The `ansible/` bind mount ensures the runner sees the same templates and variables as the Flask app.
 
-3. **Preview via Ansible subprocess** — The Flask app invokes `ansible-playbook --check --diff` as a subprocess using the same playbooks, roles, and variables that the runner uses. This guarantees pixel-perfect parity between preview and deployment. Rendered output is stored in the DB for reference. Performance (~5-10s per device) is acceptable for initial release.
+3. **Preview via Ansible subprocess** — The Flask app invokes the preview-mode playbook as a subprocess using the same playbooks, roles, and variables that the runner uses. The "configuration preview" artifact is the **full rendered configuration** (assembled snippets with merged variables) — the same artifact class that deployment pushes — which guarantees input parity between preview and deployment. Rendered output is stored in the DB for reference, and the post-deploy `verify.yml` (NETCONF `get-config` read-back compared against the render) confirms realized parity. Ansible collections are pinned in `ansible/collections/requirements.yml` so the app container and runner jobs render identically. Performance (~5-10s per device) is acceptable for initial release.
 
 4. **ZTP as integrated blueprint** — ZTP routes (`/ztp/{serial}.{txt,cfg}`) are served by the main Flask app without authentication. The ZTP blueprint shares the same `ansible/` templates and variable store as the rest of the application, rendering day-0 configs via the `ztp.yml` playbook.
 
@@ -223,6 +228,15 @@ stackhive/
 8. **Docker networking** — All services run on the `stackhive` bridge network for DNS-based service discovery. The GitLab Runner uses `network_mode: host` for direct reachability to managed devices on the network.
 
 9. **Credential resolution** — Service tokens are stored encrypted in the `ServiceCredential` DB model (Fernet encryption). The Settings UI allows Admins to rotate tokens. `.env` values serve as fallback for initial bootstrapping. Encryption key sourced from `ENCRYPTION_KEY` environment variable.
+
+## Non-Functional Decisions
+
+- **Backup & recovery**: a daily cron job tars all named volumes (`stackhive-db`, `gitlab-data`, `gitlab-etc`, `gitlab-logs`, `influxdb-data`, `grafana-data`, `traefik-acme`, `runner-config`) into `backups/`; retention is 7 daily + 4 weekly. Recovery = recreate empty volume, untar latest archive, `docker compose up -d`. GitLab CE's built-in rake backups provide a secondary safety net for GitLab data.
+- **Audit & logging**: configuration changes are audited by Git itself (auto-commits with author + descriptive message; full history and diffs in GitLab). Auth and administrative actions (login success/failure, user management, settings changes, credential rotation, deployment approvals) are emitted as structured JSON logs to stdout (Docker log-driver rotation). Role-check failures are logged (Research §9).
+- **Empty-state UX**: every list/dashboard view renders a friendly empty state with a next-action CTA (Inventory: "Add devices in NetBox, then run inventory sync"; Profiles: "Create your first profile"; Deployments: "No deployments yet"; Onboarding: "Pick a device to start ZTP"). No broken layouts at zero data.
+- **Drift detection (`modified` status)**: on-demand per-device check (`POST /api/devices/{id}/drift-check`, Editor+) plus a nightly background job over deployed devices (`drift_check_enabled` setting, default on, 02:00 local) — see Data Model §1.
+- **ZTP failure & cleanup**: no server-side auto-fail timeout (Cisco loader retries); fetch attempts are logged; operators mark provisions `failed`/`cancelled`. A daily job removes served artifacts for terminal-state provisions older than 30 days — see Data Model §8 and the ZTP contract.
+- **Telemetry sizing**: InfluxDB bucket retention defaults to 14 days (configurable via `influxdb_retention_days`); 10s counter / 30s CPU-memory intervals with `suppress-redundancy` on. A sizing pilot (Quickstart Scenario 9) measures real InfluxDB growth before GA.
 
 ## Complexity Tracking
 

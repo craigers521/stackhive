@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+// Cisco IOS-XE processor utilization telemetry
+// (Cisco-IOS-XE-processor-entity-oper:processors).
+package cisco_ios_xe.processor;
+
+message Processors {
+  repeated Processor processor = 1;
+}
+
+message Processor {
+  string name = 1;
+  uint32 cpu_utilization_5min = 2; // percentage
+  uint32 cpu_utilization_1min = 3; // percentage
+  uint32 cpu_utilization_5sec = 4; // percentage
+  uint64 sys_uptime = 5; // seconds
+}

@@ -76,7 +76,7 @@ Upon creation, the dashboard:
 
 Generated files are served from the dashboard process at the `/ztp/` path prefix. The ZTP files are accessible without authentication (devices are not authenticated at boot time).
 
-**Security consideration**: ZTP files are identified by serial number. An attacker cannot guess valid serial numbers, but the endpoint should rate-limit unauthenticated access.
+**Security consideration**: ZTP files are identified by serial number. An attacker cannot guess valid serial numbers, but the endpoint **rate-limits unauthenticated access to 10 requests/minute per client IP**; excess requests receive `429` with `Retry-After`. A normal boot fetches 2–5 files.
 
 ### 4. Device Boot
 
@@ -95,6 +95,12 @@ Once the device is reachable and responds to telemetry/ping:
 1. Grafana alerting transitions the device status from `unknown` to `up`
 2. The ZTP provision record status updates to `onboarded`
 3. The device appears in the inventory as available for profile-based configuration
+
+**Status vocabulary**: `pending` → `generated` → `delivered` → `onboarded`, plus `failed` and `cancelled` (data model §8). `delivered` is set when the ZTP HTTP handler logs an artifact fetch.
+
+**Boot failure policy (device unreachable / cannot reach the ZTP server)**: No server-side auto-fail timeout — the Cisco ZTP loader retries fetches automatically. The provision remains `generated`/`delivered`, fetch attempts are application-logged, and the operator marks the provision `failed` (with error detail) or `cancelled`.
+
+**Artifact cleanup**: A daily job removes served artifacts for provisions in terminal states older than 30 days. DB records are retained.
 
 ---
 
@@ -155,6 +161,8 @@ The dashboard may use the Meraki Dashboard API to verify onboarding:
 | X-Cisco-Meraki-Key| `<meraki_api_key>`       |
 
 Used to confirm the device has appeared in the Meraki network and to retrieve cloud-assigned attributes.
+
+**Error handling**: 10 s connection timeout; 3 retries with backoff on 5xx (standardized across integration clients). Verification failure is **non-fatal**: if the device has not appeared in Meraki yet, the provision stays `delivered` and subsequent checks retry; persistent failure logs a warning and flags the provision for operator review.
 
 ---
 

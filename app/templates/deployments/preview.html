@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Deployment #{{ record.id }} preview{% endblock %}
+{% block page_title %}Deployment #{{ record.id }} · rendered config{% endblock %}
+{% block content %}
+<p class="text-secondary small mb-3"><a href="{{ url_for('deployments.detail_view', did=record.id) }}">Back to deployment detail</a></p>
+{% if sections %}
+{% for section in sections %}
+<div class="card bg-white mb-4">
+  <div class="card-header py-2 fw-semibold d-flex justify-content-between align-items-center">
+    <span>
+      {% if section.hostname is string and section.hostname in hostnames %}
+      <a href="{{ url_for('inventory.detail', netbox_id=hostnames[section.hostname]) }}">{{ section.hostname }}</a>
+      {% else %}{{ section.hostname }}{% endif %}
+    </span>
+    <span class="small text-secondary">rendered candidate</span>
+  </div>
+  <div class="card-body p-0"><pre class="m-0 p-3 code-block small">{{ section.config }}</pre></div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card bg-white">
+  <div class="card-header py-2 fw-semibold">Full rendered configuration</div>
+  <div class="card-body p-0"><pre class="m-0 p-3 code-block small">{{ record.preview_output }}</pre></div>
+</div>
+{% endif %}
+{% endblock %}

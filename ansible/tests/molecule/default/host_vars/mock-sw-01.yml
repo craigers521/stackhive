@@ -1,0 +1,12 @@
+---
+# Per-device overrides — these must win over the group_vars values.
+iosxe_domain_name: override.example.com
+interfaces:
+  - name: GigabitEthernet1/0/1
+    description: UPLINK-to-Override
+    vlan: 20
+    enabled: true
+  - name: GigabitEthernet1/0/4
+    description: EXTRA-override
+    vlan: 10
+    enabled: true

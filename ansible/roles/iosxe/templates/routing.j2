@@ -1,0 +1,37 @@
+!
+! --- routing ---
+!
+{% if routing.get('ip_forwarding', true) %}
+ip forwarding
+{% endif %}
+{% for vrf in routing.get('ip_routing_vrfs', []) %}
+ip vrf definition {{ vrf }}
+ address-family ipv4
+ exit-address-family
+!
+{% endfor %}
+{% for route in routing.get('static_routes', []) %}
+ip route {{ route.get('prefix') }} {{ route.get('next_hop') }}{% if route.get('vrf') %} vrf {{ route.get('vrf') }}{% endif %}{% if route.get('distance') %} {{ route.get('distance') }}{% endif %}
+{% endfor %}
+{% set ospf = routing.get('ospf', {}) %}
+{% if ospf.get('enabled', false) %}
+router ospf {{ ospf.get('process_id', 1) }}
+{% for network in ospf.get('networks', []) %}
+ network {{ network.get('prefix') }} area {{ network.get('area', ospf.get('area_default', 0)) }}
+{% endfor %}
+{% for iface in ospf.get('passiv_interfaces', []) %}
+ passive-interface {{ iface }}
+{% endfor %}
+!
+{% endif %}
+{% set bgp = routing.get('bgp', {}) %}
+{% if bgp.get('enabled', false) %}
+router bgp {{ bgp.get('as_number') }}
+{% for neighbor in bgp.get('neighbors', []) %}
+ neighbor {{ neighbor.get('ip') }} remote-as {{ neighbor.get('remote_as') }}
+{% if neighbor.get('description') %}
+ neighbor {{ neighbor.get('ip') }} description {{ neighbor.get('description') }}
+{% endif %}
+{% endfor %}
+!
+{% endif %}

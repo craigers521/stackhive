@@ -1,0 +1,70 @@
+---
+# Post-deploy verification — NETCONF <get-config running> read-back diffed
+# against the re-rendered candidate. The iosxe role re-renders the expected
+# candidate with the same playbooks/vars (preview mode) to keep parity; any
+# rendered line missing from the running config is drift and fails the job.
+
+- name: StackHive post-deploy verification
+  hosts: all
+  gather_facts: false
+  vars:
+    deploy_mode: preview
+    iosxe_output_dir: "{{ playbook_dir }}/verify_out/{{ inventory_hostname }}"
+    _is_netconf: "{{ ansible_connection | default('local') == 'netconf' }}"
+  pre_tasks:
+    - name: Re-render the expected candidate (no device I/O)
+      ansible.builtin.include_role:
+        name: iosxe
+
+    - name: Read running configuration over NETCONF
+      ansible.netcommon.netconf_get:
+        source: running
+      register: iosxe_running
+      when: _is_netconf
+
+  tasks:
+    - name: Normalize the re-rendered candidate into trimmed lines
+      ansible.builtin.set_fact:
+        candidate_lines: >-
+          {{ (iosxe_assembled | default('') | trim | split('\n')
+              | map('trim') | reject('equalto', '') | list) }}
+
+    - name: Extract config text lines from the NETCONF read-back XML
+      when: _is_netconf
+      ansible.builtin.set_fact:
+        running_lines: >-
+          {{ (iosxe_running.stdout | default('')
+              | regex_replace('<[^>]+>', '\n')
+              | regex_replace('&#10;|&#13;', '\n')
+              | regex_replace('\n\s*\n+', '\n')
+              | trim | split('\n') | map('trim') | reject('equalto', '') | list) }}
+
+    - name: Diff the read-back configuration against the re-rendered candidate
+      vars:
+        _missing: "{{ candidate_lines | difference(running_lines | default([])) | list }}"
+      ansible.builtin.set_fact:
+        drift_missing: "{{ _missing }}"
+        verify_status: >-
+          {{ 'skipped' if not _is_netconf
+             else ('drift' if _missing | length > 0 else 'verified') }}
+
+    - name: Record verification result with read-back
+      ansible.builtin.copy:
+        content: >-
+          {{ {'hostname': inventory_hostname,
+              'status': verify_status,
+              'missing_lines': drift_missing,
+              'running_config_present': _is_netconf} | to_json }}
+        dest: "{{ iosxe_output_dir }}/verify.json"
+        mode: "0644"
+
+    - name: Fail the job when configuration drift is detected
+      ansible.builtin.assert:
+        that: verify_status != 'drift'
+        fail_msg: >-
+          Drift on {{ inventory_hostname }}: {{ drift_missing | length }} rendered
+          line(s) missing from the running config. First offenders:
+          {{ (drift_missing[:5] | map('to_json') | join('; ')) }}
+        success_msg: >-
+          Verified {{ inventory_hostname }}: running config matches the rendered
+          candidate ({{ 'NETCONF read-back comparison' if _is_netconf else 'local render, NETCONF skipped' }}).

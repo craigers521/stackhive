@@ -1,0 +1,113 @@
+# StackHive config deployment pipeline (GitLab CE).
+#
+# Stages: validate -> preview -> approve (manual) -> deploy -> verify -> notify
+#
+# Trigger: merging a deploy/<id> merge request (opened by the dashboard on
+# deployment creation; merged by an admin as the approval gate). The pipeline
+# reads the deployment manifest committed to the deploy branch:
+#   deployments/manifests/deploy-<id>.yml
+#
+# CI/CD variables to configure (Settings -> CI/CD):
+#   DASHBOARD_URL                   dashboard base URL for the notify job
+#   GITLAB_WEBHOOK_TOKEN            shared secret for the dashboard webhook
+#   ANSIBLE_NETCONF_USER/PASSWORD   device credentials (protected, mask)
+#
+# Runner requirements:
+#   tags: ansible,netconf  (python3 + ansible-core + pinned collections)
+
+stages:
+  - validate
+  - preview
+  - approve
+  - deploy
+  - verify
+  - notify
+
+variables:
+  ANSIBLE_ROLES_PATH: "$CI_PROJECT_DIR/ansible/roles"
+  ANSIBLE_PYTHON_INTERPRETER: auto_silent
+
+.deploy-base:
+  image: ansible/ansible:stable-2.20
+  before_script:
+    - ansible-galaxy collection install -r ansible/collections/requirements.yml
+  tags:
+    - ansible
+
+manifest-inventory:
+  script:
+    - |
+      DEPLOY_ID="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME#deploy/}"
+      MANIFEST="ansible/deployments/manifests/deploy-${DEPLOY_ID}.yml"
+      test -f "$MANIFEST" || { echo "no manifest for deployment ${DEPLOY_ID}" && ls -la ansible/deployments/manifests/ 2>/dev/null; exit 1; }
+      echo "Deployment manifest:" && cat "$MANIFEST"
+
+validate:playbooks:
+  extends: .deploy-base
+  stage: validate
+  script:
+    - cd ansible && ANSIBLE_CONFIG=ansible.cfg ansible-playbook site.yml preview.yml verify.yml ztp.yml --syntax-check
+
+preview:
+  extends: .deploy-base
+  stage: preview
+  script:
+    - !reference [manifest-inventory, script]
+    - |
+      python3 gitlab-ci/manifest_to_inventory.py "ansible/deployments/manifests/deploy-${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME#deploy/}.yml" /tmp/ci_inventory.yml
+      ansible-playbook ansible/preview.yml -i /tmp/ci_inventory.yml --diff
+  artifacts:
+    when: always
+    paths:
+      - ansible/preview_out/
+    expire_in: 1 week
+
+approve:
+  stage: approve
+  when: manual
+  allow_failure: false
+  tags:
+    - ansible
+  script:
+    - echo "Manual approval gate: the dashboard approval action merges the MR; this manual job is the in-UI fallback."
+
+deploy:
+  extends: .deploy-base
+  stage: deploy
+  script:
+    - !reference [manifest-inventory, script]
+    - |
+      python3 gitlab-ci/manifest_to_inventory.py "ansible/deployments/manifests/deploy-${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME#deploy/}.yml" /tmp/ci_inventory.yml --live
+      ansible-playbook ansible/site.yml -i /tmp/ci_inventory.yml
+  needs:
+    - preview
+    - approve
+
+verify:
+  extends: .deploy-base
+  stage: verify
+  script:
+    - !reference [manifest-inventory, script]
+    - |
+      python3 gitlab-ci/manifest_to_inventory.py "ansible/deployments/manifests/deploy-${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME#deploy/}.yml" /tmp/ci_inventory.yml --live
+      ansible-playbook ansible/verify.yml -i /tmp/ci_inventory.yml
+  needs:
+    - deploy
+  artifacts:
+    when: always
+    paths:
+      - ansible/verify_out/
+    expire_in: 1 week
+
+notify:
+  stage: notify
+  image: curlimages/curl:latest
+  tags: []
+  when: always
+  script:
+    - |
+      curl -fsS -X POST "${DASHBOARD_URL}/api/webhooks/gitlab/pipeline" \
+        -H "X-GitLab-Token: ${GITLAB_WEBHOOK_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{\"object_kind\": \"pipeline\", \"object_attributes\": {\"id\": ${CI_PIPELINE_ID}, \"ref\": \"${CI_COMMIT_REF_NAME}\", \"status\": \"${CI_JOB_STATUS:-manual}\"}}" \
+        -o /dev/null || echo "dashboard notify failed (non-fatal)"

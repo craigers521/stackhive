@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+// Cisco IOS-XE memory statistics telemetry
+// (Cisco-IOS-XE-memory-oper:memory-statistics).
+package cisco_ios_xe.memory;
+
+message MemoryStatistics {
+  uint64 total_memory = 1; // bytes
+  uint64 free_memory = 2; // bytes
+  uint64 used_memory = 3; // bytes
+  double utilization_percent = 4;
+}

@@ -8,9 +8,41 @@ Endpoints require an authenticated session cookie (`session`) unless marked othe
 
 | Role    | Permissions                                                                 |
 |---------|-----------------------------------------------------------------------------|
-| Viewer  | Read-only access to inventory, monitoring, deployment history, onboarding   |
+| Viewer  | Read-only: inventory, profiles (reference data), monitoring, deployment history, onboarding |
 | Editor  | Viewer + create/edit profiles, templates, variables, trigger deployments    |
 | Admin   | Editor + approve deployments, manage users, system configuration            |
+
+---
+
+## Global Conventions
+
+- **Identifiers**: IDs in responses are strings. Device IDs are NetBox device IDs (numeric, serialized as strings) — **not** locally generated UUIDs; local DB primary keys are internal only.
+- **Timestamps**: All timestamps are ISO 8601 in UTC (`Z` suffix).
+- **Versioning**: v1 endpoints carry no version prefix (`/api` = v1). Changes within v1 are additive-only; breaking changes introduce `/api/v2`.
+- **Pagination**: Only unbounded list endpoints are paginated — `GET /api/devices` and `GET /api/deployments` (`page`, `per_page`; default 25, max 100). Other list endpoints return their full bounded set.
+- **Rate limiting**: Authenticated endpoints are not rate-limited (internal tool, 3-10 users). Unauthenticated ZTP file routes are limited to 10 requests/minute per client IP; excess receives `429`.
+- **Preview artifact**: The `config` returned by the preview endpoint is the **full rendered configuration** (assembled snippets with merged variables) — the same artifact class that deployment pushes. Parity with deployment is guaranteed by the shared playbooks/roles/vars (plan, Structure Decision 3).
+
+---
+
+## Health
+
+### GET /api/health
+
+Liveness/readiness probe used by Traefik's healthcheck middleware.
+
+**Role**: None (public)
+
+**Response 200**:
+| Field      | Type   | Description                                        |
+|------------|--------|----------------------------------------------------|
+| status     | string | `ok` or `degraded`                                 |
+| services   | object | `{ db, netbox, gitlab, grafana, influxdb: "up" or "down" }` |
+
+**Error responses**:
+| Status | Description          |
+|--------|----------------------|
+| 503    | Database unreachable |
 
 ---
 
@@ -74,6 +106,7 @@ List all managed network devices.
 | status          | string   | `up`, `down`, `unknown`                  |
 | site            | string   | Site/location name                       |
 | cloud_managed   | bool     | True if device is Meraki cloud-managed   |
+| stale           | bool     | True if device no longer in NetBox at last sync |
 | last_deployment | string   | ISO 8601 timestamp of last deployment, or null |
 | tags            | array[str]| NetBox tags attached to the device       |
 
@@ -107,6 +140,7 @@ Get detail for a single device.
 | status             | string     | `up`, `down`, `unknown`                    |
 | site               | string     | Site name                                  |
 | cloud_managed      | bool       | Meraki cloud-managed flag                  |
+| stale              | bool       | No longer present in NetBox at last sync   |
 | last_deployment    | string     | ISO 8601 timestamp or null                 |
 | tags               | array[str] | NetBox tags                                |
 | interfaces         | array[obj] | Physical interface list (see below)        |
@@ -130,6 +164,76 @@ Get detail for a single device.
 | 401    | Not authenticated        |
 | 404    | Device not found         |
 | 503    | NetBox inventory unavailable |
+
+### POST /api/devices/{id}/drift-check
+
+Compare the device's running configuration (NETCONF `get-config`) against the last deployed render; sets `config_status` to `modified` on divergence.
+
+**Role**: Editor
+
+**Response 200**:
+| Field       | Type   | Description                                     |
+|-------------|--------|-------------------------------------------------|
+| device_id   | string | NetBox device ID                                |
+| status      | string | `deployed` (no drift) or `modified`             |
+| diff        | string | Config diff vs deployed render (empty if none)  |
+| checked_at  | string | ISO 8601 UTC                                    |
+
+**Error responses**:
+| Status | Description           |
+|--------|-----------------------|
+| 401    | Not authenticated     |
+| 403    | Insufficient role     |
+| 404    | Device not found      |
+| 422    | Device unreachable    |
+
+---
+
+## Device Types
+
+Device model definitions with interface layout data, sourced from NetBox with an Admin-maintained local fallback for models where NetBox lacks interface template data.
+
+### GET /api/device-types
+
+List device models.
+
+**Role**: Viewer
+
+**Query parameters**: `search`, `manufacturer`, `model` (all optional)
+
+**Response 200**:
+| Field        | Type      | Description           |
+|--------------|-----------|-----------------------|
+| device_types | array[obj] | Device type objects  |
+
+**Device type object**:
+| Field             | Type    | Description                             |
+|-------------------|---------|-----------------------------------------|
+| id                | string  | NetBox device type ID (or local ID)     |
+| manufacturer      | string  | e.g., `cisco`                           |
+| model             | string  | e.g., `C9300-48P`                       |
+| part_number       | string  | Manufacturer part number                |
+| interface_count   | int     | Total physical interfaces               |
+| interface_types   | object  | Map of interface type → count           |
+| source            | string  | `netbox` or `local` (local fallback)    |
+
+### PUT /api/device-types/{id}
+
+Maintain local interface data (fallback when NetBox lacks interface template data for the model).
+
+**Role**: Admin
+
+**Request body**: Any subset of `manufacturer`, `model`, `part_number`, `interface_count`, `interface_types`, `slot_config`, `uplink_slots`, `management_interfaces`
+
+**Response 200** — Updated device type object.
+
+**Error responses**:
+| Status | Description                                                |
+|--------|------------------------------------------------------------|
+| 400    | Invalid body (e.g., `interface_count` != sum of `interface_types`) |
+| 401    | Not authenticated                                          |
+| 403    | Insufficient role                                          |
+| 404    | Device type not found                                      |
 
 ---
 
@@ -232,7 +336,7 @@ Each item in `templates`:
 | 400    | Invalid request body           |
 | 401    | Not authenticated              |
 | 403    | Insufficient role (need Editor)|
-| 409    | Profile name already exists    |
+| 409    | Profile name already exists, or another active profile already targets this device role |
 
 ### PUT /api/profiles/{id}
 
@@ -260,7 +364,7 @@ Update an existing profile.
 | 401    | Not authenticated                   |
 | 403    | Insufficient role                   |
 | 404    | Profile not found                   |
-| 409    | Git merge conflict on underlying files |
+| 409    | Git merge conflict on underlying files, or an active profile already exists for the new target role |
 
 ### DELETE /api/profiles/{id}
 
@@ -372,7 +476,7 @@ Trigger a configuration deployment to one or more devices.
 | Field           | Type    | Description                              |
 |-----------------|---------|------------------------------------------|
 | deployment_id   | string  | Deployment record UUID                   |
-| status          | string  | `pending`, `running`, `success`, `failed`|
+| status          | string  | `pending` at acceptance (full vocabulary in deployment record) |
 | device_ids      | array[str]| Target device IDs                      |
 | profile_id      | string  | Deployed profile UUID                    |
 | triggered_by    | string  | Username                                 |
@@ -386,7 +490,7 @@ Trigger a configuration deployment to one or more devices.
 | 400    | Invalid request body             |
 | 401    | Not authenticated                |
 | 403    | Insufficient role                |
-| 409    | Device is cloud-managed (Meraki) |
+| 409    | Device is cloud-managed (Meraki), stale, or has an in-flight deployment (concurrency guard) |
 | 422    | Validation failed (e.g., device unreachable) |
 
 ### GET /api/deployments
@@ -400,9 +504,9 @@ List deployment history.
 |------------|--------|----------|-----------------------------------|
 | device_id  | string | No       | Filter by device                  |
 | profile_id | string | No       | Filter by profile                 |
-| status     | string | No       | Filter by result: `success`, `failed` |
-| page       | int    | No       | Page number                       |
-| per_page   | int    | No       | Results per page                  |
+| status     | string | No       | Filter by status: `pending`, `approved`, `running`, `success`, `failed`, `cancelled` |
+| page       | int    | No       | Page number (default: 1)          |
+| per_page   | int    | No       | Results per page (default: 25, max: 100) |
 
 **Response 200**:
 | Field            | Type      | Description                  |
@@ -415,10 +519,11 @@ List deployment history.
 | Field             | Type     | Description                             |
 |-------------------|----------|-----------------------------------------|
 | deployment_id     | string   | UUID                                    |
-| status            | string   | `pending`, `running`, `success`, `failed`|
-| device_ids        | array[str]| Target devices                         |
+| status            | string   | `pending`, `approved`, `running`, `success`, `failed`, `cancelled` |
+| device_ids        | array[str]| Target devices (batch)                |
 | profile_id        | string   | Profile UUID                            |
 | profile_name      | string   | Profile name                            |
+| devices           | array[obj] | Per-device results: `{ hostname, status: success|failed, message, diff }` |
 | triggered_by      | string   | Username                                |
 | triggered_at      | string   | ISO 8601 timestamp                      |
 | completed_at      | string   | ISO 8601 timestamp or null              |
@@ -426,6 +531,8 @@ List deployment history.
 | pipeline_id       | int      | GitLab pipeline ID                      |
 | message           | string   | Deployment result/error message         |
 | config_diff       | string   | Diff of config sections added/modified/removed |
+
+**Partial success**: A multi-device deployment in which some devices fail is recorded as `failed`; per-device outcomes live in the `devices` array and `message` names the failed devices (data model §6/§6b).
 
 ### GET /api/deployments/{deployment_id}
 
@@ -538,7 +645,7 @@ List devices pending ZTP provisioning.
 | serial        | string  | Device serial number                  |
 | ztp_url       | string  | URL to ZTP boot script                |
 | config_url    | string  | URL to day-0 configuration            |
-| status        | string  | `pending`, `provisioned`, `onboarded` |
+| status        | string  | `pending`, `generated`, `delivered`, `onboarded`, `failed`, `cancelled` |
 | is_meraki     | bool    | Whether this is a Meraki onboarding   |
 
 ### POST /api/onboarding/ztp
@@ -642,6 +749,26 @@ Get the current authenticated user.
 | username | string  | Username                   |
 | role     | string  | `viewer`, `editor`, `admin`|
 
+### PUT /api/auth/password
+
+Change the current user's password (self-service).
+
+**Role**: Any authenticated user
+
+**Request body**:
+| Field            | Type   | Required | Description                |
+|------------------|--------|----------|----------------------------|
+| current_password | string | Yes      | Current password           |
+| new_password     | string | Yes      | New password (min 8 chars) |
+
+**Response 204** — No content.
+
+**Error responses**:
+| Status | Description                            |
+|--------|----------------------------------------|
+| 400    | Invalid body / current password incorrect |
+| 401    | Not authenticated                      |
+
 ---
 
 ## Users (Admin Only)
@@ -714,6 +841,27 @@ Delete a user.
 | 403    | Insufficient role        |
 | 404    | User not found           |
 
+### PUT /api/users/{user_id}/password
+
+Admin resets a user's password (e.g., for a locked-out user).
+
+**Role**: Admin
+
+**Request body**:
+| Field    | Type   | Required | Description                |
+|----------|--------|----------|----------------------------|
+| password | string | Yes      | New password (min 8 chars) |
+
+**Response 200** — Updated user object (no password field returned).
+
+**Error responses**:
+| Status | Description              |
+|--------|--------------------------|
+| 400    | Invalid password         |
+| 401    | Not authenticated        |
+| 403    | Insufficient role        |
+| 404    | User not found           |
+
 ---
 
 ## Settings
@@ -737,9 +885,11 @@ Get system configuration.
 | git_working_branch  | string | Git working branch name               |
 | git_production_branch| string| Git production branch name            |
 | ztp_base_url        | string | Base URL for ZTP script/config hosting|
-| refresh_interval    | int    | Monitoring refresh interval in seconds|
+| refresh_interval    | int    | Monitoring refresh interval in seconds (default: 60) |
 | meraki_api_base     | string | Meraki dashboard API base URL         |
 | meraki_api_key      | string | Redacted (`****...`)                  |
+| influxdb_retention_days | int | Telemetry retention in days (default: 14) |
+| drift_check_enabled | bool   | Nightly background drift check (default: true) |
 
 ### PUT /api/settings
 
@@ -801,7 +951,7 @@ GitLab CI/CD pipeline completion callback. This endpoint receives deployment res
 | pipeline_id   | int       | GitLab pipeline ID              |
 | status        | string    | `success` or `failed`           |
 | commit_sha    | string    | Commit SHA                      |
-| deployed_at   | string    | ISO 8056 deployment time        |
+| deployed_at   | string | ISO 8601 deployment time        |
 | devices       | array[obj] | Per-device results            |
 
 Per-device result:

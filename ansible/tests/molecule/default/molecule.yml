@@ -1,0 +1,39 @@
+---
+# Molecule scenario: converge + verify the iosxe role against a mock IOS-XE
+# host (connection: local, render-only — no device, no NETCONF).
+#
+# Run from ansible/:
+#   molecule test -s default
+# (falls back to a direct ansible-playbook run in CI when molecule is absent)
+dependency:
+  name: galaxy
+  enabled: false
+
+driver:
+  name: default
+
+platforms:
+  - name: leaf
+    connection: local
+    hosts:
+      mock-sw-01:
+        ansible_host: 192.0.2.10
+        ansible_connection: local
+        stackhive_profile: leaf
+        deploy_mode: preview
+        iosxe_output_dir: "${MOLECULE_EPHEMERAL_DIRECTORY}/preview_out/mock-sw-01"
+
+provisioner:
+  name: ansible
+  playbook: converge.yml
+  inventory:
+    links:
+      group_vars: group_vars
+      host_vars: host_vars
+  config_options:
+    defaults:
+      gather_facts: "false"
+
+verifier:
+  name: ansible
+  playbook: verify.yml

@@ -1,0 +1,50 @@
+<div class="card bg-white" id="new-ztp-provision">
+  <div class="card-header py-2 fw-semibold"><i class="bi bi-plug me-2"></i>New ZTP provision</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('onboarding.create') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-2">
+        <label class="form-label small" for="zb-device">Device</label>
+        <select class="form-select form-select-sm" id="zb-device" name="device_id" required>
+          <option value="">— select device —</option>
+          {% for d in devices %}
+          <option value="{{ d.netbox_id }}">{{ d.hostname }} ({{ d.serial_number or 'no serial' }}){% if d.ztp_provision %} — already provisioned{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-6">
+          <label class="form-label small" for="zb-serial">Serial number</label>
+          <input type="text" class="form-control form-control-sm" id="zb-serial" name="serial" required placeholder="FCW25123ABC">
+        </div>
+        <div class="col-6">
+          <label class="form-label small" for="zb-hostname">Planned hostname</label>
+          <input type="text" class="form-control form-control-sm" id="zb-hostname" name="hostname" required>
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label small" for="zb-profile">Day-0 profile</label>
+        <select class="form-select form-select-sm" id="zb-profile" name="profile_id" required>
+          <option value="">— select profile —</option>
+          {% for p in profiles %}
+          <option value="{{ p.id }}">{{ p.name }} ({{ p.device_role }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="zb-meraki" name="is_meraki" value="1">
+        <label class="form-check-label small" for="zb-meraki">Meraki cloud onboarding</label>
+      </div>
+      <div id="zb-network-wrap" class="mb-2">
+        <label class="form-label small" for="zb-network">Meraki network ID</label>
+        <input type="text" class="form-control form-control-sm" id="zb-network" name="network_id" placeholder="N-xxxxxxxx">
+        <div class="form-text">Required only when Meraki onboarding is checked; ignored for local ZTP.</div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plug me-1"></i>Create provision</button>
+    </form>
+  </div>
+</div>
+<p class="text-secondary small mt-2">
+  The dashboard renders the day-0 config with the ZTP playbook and hosts it at
+  <code>/ztp/&lt;serial&gt;.txt</code> — public but rate-limited to 10 req/min per IP.
+</p>

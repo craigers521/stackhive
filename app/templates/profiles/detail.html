@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.name }}{% endblock %}
+{% block page_title %}Profile: {{ profile.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <span class="badge bg-light text-dark border me-2">{{ profile.device_role }}</span>
+    {% if profile.is_active %}<span class="badge bg-success-subtle text-success me-2">active</span>{% endif %}
+    <span class="text-secondary small">version {{ profile.version }}</span>
+    <span class="text-secondary small ms-3">{{ role_device_count }} device(s) in this role</span>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('profiles.edit', pid=profile.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil me-1"></i>Edit</a>
+    <form method="post" action="{{ url_for('profiles.delete', pid=profile.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm" title="Removes the profile and its templates from the Git repo"><i class="bi bi-trash me-1"></i>Delete</button>
+    </form>
+  </div>
+</div>
+{% if profile.description %}<p class="text-secondary mb-3">{{ profile.description }}</p>{% endif %}
+
+{# Stacked collapsible sections as native <details>/<summary> — no JS needed. #}
+<div class="device-sections mb-4">
+  <details class="section-card" open>
+    <summary class="section-summary">Templates ({{ templates|length }})</summary>
+      <div class="accordion-body">
+        {% if templates %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead class="table-light"><tr><th style="width:56px">Order</th><th>Name</th><th>Section</th><th>Enabled</th></tr></thead>
+            <tbody>
+              {% for t in templates %}
+              <tr>
+                <td>{{ t.display_order }}</td>
+                <td><a href="#tpl-{{ t.id }}"><strong>{{ t.name }}</strong></a></td>
+                <td>{{ t.config_section or '—' }}</td>
+                <td>{% if t.is_enabled %}<span class="text-success"><i class="bi bi-check-circle"></i></span>{% else %}<span class="text-secondary"><i class="bi bi-dash-circle"></i></span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% for t in templates %}
+        <div class="card mb-2" id="tpl-{{ t.id }}">
+          <div class="card-header py-1 small text-secondary">templates/{{ profile.name }}/{{ t.name }}.j2</div>
+          <div class="card-body p-0"><pre class="m-0 p-3 code-block small">{{ t.content }}</pre></div>
+        </div>
+        {% endfor %}
+        {% else %}<p class="mb-0 text-secondary">No templates in this profile.</p>{% endif %}
+      </div>
+  </details>
+
+  <details class="section-card">
+    <summary class="section-summary">Variables ({{ variables|length }})</summary>
+      <div class="accordion-body">
+        {% if variables %}
+        <table class="table table-sm align-middle">
+          <thead class="table-light"><tr><th>Key</th><th>Type</th><th>Value</th><th>Description</th></tr></thead>
+          <tbody>
+            {% for v in variables %}
+            <tr>
+              <td><code>{{ v.key }}</code></td>
+              <td><span class="badge bg-light text-dark border">{{ v.value_type }}</span></td>
+              <td><code class="user-select-all">{{ v.value }}</code></td>
+              <td class="text-secondary small">{{ v.description or '' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="text-secondary small mb-0">Persists to <code>group_vars/{{ profile.name }}/vars.yml</code>.</p>
+        {% else %}<p class="mb-0 text-secondary">No variables defined.</p>{% endif %}
+      </div>
+  </details>
+
+  <details class="section-card">
+    <summary class="section-summary">Interface templates ({{ interfaces|length }})</summary>
+      <div class="accordion-body">
+        {% if interfaces %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead class="table-light"><tr><th>Name</th><th>Type</th><th>Range</th><th>Interfaces</th></tr></thead>
+            <tbody>
+              {% for it in interfaces %}
+              <tr>
+                <td><strong>{{ it.name }}</strong></td>
+                <td><span class="badge bg-light text-dark border">{{ it.interface_type }}</span></td>
+                <td>{{ it.interface_range }}</td>
+                <td class="text-secondary small">{{ (it.interface_type ~ ' ' ~ it.interface_range) if it.interface_range != 'all' else it.interface_type ~ ' (all)' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% for it in interfaces %}
+        <div class="card mb-2">
+          <div class="card-header py-1 small text-secondary">templates/{{ profile.name }}/interfaces/{{ it.name }}.j2</div>
+          <div class="card-body p-0"><pre class="m-0 p-3 code-block small">{{ it.content }}</pre></div>
+        </div>
+        {% endfor %}
+        {% else %}<p class="mb-0 text-secondary">No interface templates defined.</p>{% endif %}
+      </div>
+  </details>
+</div>
+{% endblock %}

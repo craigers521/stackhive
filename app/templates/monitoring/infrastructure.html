@@ -1,0 +1,45 @@
+{% from "components/status_badge.html" import status_badge %}
+{# Jinja2 has no inline comprehensions: build the degraded-service list explicitly. #}
+{% set ns = namespace(unhealthy=[]) %}
+{% for name, status in infra.items() %}
+{% if status != 'healthy' %}
+{% set ns.unhealthy = ns.unhealthy + [(name, status)] %}
+{% endif %}
+{% endfor %}
+{% set unhealthy = ns.unhealthy %}
+<div class="row g-3 mb-3">
+  {% for name, status in infra.items() %}
+  <div class="col-6 col-md">
+    <div class="card bg-white text-center {% if status == 'down' %}border-danger{% elif status != 'healthy' %}border-warning{% endif %}">
+      <div class="card-body py-2">
+        <div class="small text-secondary text-uppercase fw-semibold">{{ name }}</div>
+        {{ status_badge(kind="infra", status=status) }}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="card bg-white text-center">
+      <div class="card-body py-4">
+        <i class="bi bi-hdd-rack display-6 text-secondary"></i>
+        <p class="mt-2 mb-0 text-secondary small">Infrastructure services are defined once the TIG stack is up.</p>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% if unhealthy %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center py-2" role="alert">
+  <span>
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    Degraded services:
+    {% for name, status in unhealthy %}
+    {{ status_badge(kind="infra", status=status) }} <span class="fw-semibold me-2">{{ name }}</span>
+    {% endfor %}
+    — check the infrastructure dashboard for alerts.
+  </span>
+</div>
+{% endif %}
+<a href="{{ infra_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm mb-3">
+  <i class="bi bi-bar-chart-line me-1"></i>Open infrastructure dashboard
+</a>
