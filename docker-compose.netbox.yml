@@ -2,7 +2,7 @@ name: stackhive-netbox
 
 services:
   netbox-postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: stackhive-netbox-postgres
     environment:
       POSTGRES_DB: netbox
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   netbox-redis:
-    image: redis:7-alpine
+    image: valkey/valkey:9.1-alpine
     container_name: stackhive-netbox-redis
     volumes:
       - netbox-redis-data:/data
@@ -38,7 +38,7 @@ services:
     restart: unless-stopped
 
   netbox:
-    image: netboxcommunity/netbox:v4.0.12
+    image: netboxcommunity/netbox:v4.6-5.0.2
     container_name: stackhive-netbox
     environment:
       SUPERUSER_NAME: ${NETBOX_SUPERUSER_NAME:-admin}
@@ -82,7 +82,7 @@ services:
     restart: unless-stopped
 
   netbox-worker:
-    image: netboxcommunity/netbox:v4.0.12
+    image: netboxcommunity/netbox:v4.6-5.0.2
     container_name: stackhive-netbox-worker
     command: netbox-worker
     environment:
