@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.12 AS builder
 
 WORKDIR /build
 
@@ -7,7 +7,7 @@ RUN python -m pip install --no-cache-dir --prefix=/install --upgrade pip
 COPY requirements.txt .
 RUN python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-FROM python:3.12-slim AS production
+FROM python:3.12 AS production
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
