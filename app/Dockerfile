@@ -2,10 +2,10 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
-RUN pip install --no-cache-dir --prefix=/install --upgrade pip
+RUN python -m pip install --no-cache-dir --prefix=/install --upgrade pip
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 FROM python:3.12-slim AS production
 
