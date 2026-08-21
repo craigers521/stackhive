@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
 
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.7.11
     container_name: stackhive-traefik
     command:
       - "--configfile=/etc/traefik/traefik.yml"
@@ -55,7 +55,7 @@ services:
     restart: unless-stopped
 
   gitlab:
-    image: gitlab/gitlab-ce:17.11.2-ce.0
+    image: gitlab/gitlab-ce:18.11.11-ce.0
     container_name: stackhive-gitlab
     hostname: gitlab.stackhive.local
     shm_size: "256m"
@@ -115,7 +115,7 @@ services:
     restart: unless-stopped
 
   gitlab-runner:
-    image: gitlab/gitlab-runner:v17.11.2
+    image: gitlab/gitlab-runner:v18.11.4
     container_name: stackhive-runner
     volumes:
       - runner-config:/etc/gitlab-runner
@@ -136,7 +136,7 @@ services:
     restart: unless-stopped
 
   influxdb:
-    image: influxdb:2.7.5
+    image: influxdb:2.9.1
     container_name: stackhive-influxdb
     environment:
       INFLUXDB_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
@@ -159,7 +159,7 @@ services:
     restart: unless-stopped
 
   telegraf:
-    image: telegraf:1.32.4
+    image: telegraf:1.39.3
     container_name: stackhive-telegraf
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -181,7 +181,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:10.4.10
+    image: grafana/grafana:12.3.11
     container_name: stackhive-grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
